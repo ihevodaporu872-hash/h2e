@@ -5,6 +5,7 @@
 - Вместо локального запуска - делать push в GitHub
 
 ## Git workflow
+- **АВТОМАТИЧЕСКИ делать commit и push после КАЖДОГО запроса пользователя**
 - После изменений делать commit и push в репозиторий
 - Remote: https://github.com/ihevodaporu872-hash/h2e
 
