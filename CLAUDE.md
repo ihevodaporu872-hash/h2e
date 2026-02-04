@@ -7,7 +7,8 @@
 ## Git workflow
 - **АВТОМАТИЧЕСКИ делать commit и push после КАЖДОГО запроса пользователя**
 - После изменений делать commit и push в репозиторий
-- Remote: https://github.com/ihevodaporu872-hash/h2e
+- Ветка: masterh2e
+- Remote: https://github.com/ihevodaporu872-hash/h2e/tree/masterh2e
 
 ## Хранение промптов
 - Все промпты и сессии сохранять в папке `h2epromts/`
