@@ -1,0 +1,181 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 4px 0 0 0;
+}
+
+.uploadGrid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .uploadGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .arrowContainer {
+    display: none;
+  }
+}
+
+.arrowContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 100px;
+}
+
+.arrow {
+  color: var(--text-muted);
+}
+
+.fileLoaded {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  background-color: rgba(16, 185, 129, 0.1);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.successIcon {
+  color: var(--accent-success);
+  flex-shrink: 0;
+}
+
+.rows {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.compareAction {
+  display: flex;
+  justify-content: center;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.summary {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  padding: 20px;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+}
+
+.summaryItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summaryValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: block;
+}
+
+.summaryLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.matchIcon {
+  color: var(--accent-success);
+}
+
+.changeIcon {
+  color: var(--accent-warning);
+}
+
+.deleteIcon {
+  color: var(--accent-danger);
+}
+
+.diffList {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.diffHeader,
+.diffRow {
+  display: grid;
+  grid-template-columns: 100px 1fr 1fr 100px;
+  gap: 16px;
+  padding: 12px 16px;
+}
+
+.diffHeader {
+  background-color: var(--bg-tertiary);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.diffRow {
+  background-color: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  font-size: 14px;
+}
+
+.diffRow:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.diffPos {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.diffOld {
+  color: var(--text-muted);
+}
+
+.diffNew {
+  color: var(--text-primary);
+}
+
+.diffDelta {
+  font-weight: 600;
+  text-align: right;
+}
+
+.diffDelta.positive {
+  color: var(--accent-danger);
+}
+
+.diffDelta.negative {
+  color: var(--accent-success);
+}
