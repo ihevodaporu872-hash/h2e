@@ -1,11 +1,11 @@
 # BOQ Agent - System Architecture Design
 
 **Date**: 2026-02-19
-**Status**: Implemented (Phase 1)
+**Status**: Fully Implemented (Phase 1 + Phase 2)
 
 ## Overview
 
-BOQ Agent is a Python-based CLI tool that automatically extracts Bill of Quantities (BOQ) data from tender documents. It processes multiple file formats, classifies content by type, and generates structured Excel output.
+BOQ Agent is a Python-based CLI tool that automatically extracts Bill of Quantities (BOQ) data from tender documents. It processes multiple file formats, classifies content by type, uses AI for intelligent extraction, and generates structured Excel output.
 
 ## Design Decisions
 
@@ -50,9 +50,9 @@ BOQ Agent is a Python-based CLI tool that automatically extracts Bill of Quantit
 │  ┌──────────┐    ┌──────────────┐    ┌───────────────────────┐ │
 │  │  OUTPUT  │◀───│   EXCEL      │◀───│    BOQ ASSEMBLER      │ │
 │  │          │    │   GENERATOR  │    │                       │ │
-│  │ BOQ.xlsx │    │              │    │  - Template Engine    │ │
+│  │ BOQ.xlsx │    │              │    │  - Section Builder    │ │
 │  │          │    │ - openpyxl   │    │  - Deduplication      │ │
-│  └──────────┘    │ - Formatting │    │  - Hierarchy Builder  │ │
+│  └──────────┘    │ - Formatting │    │  - Item Numbering     │ │
 │                  └──────────────┘    └───────────────────────┘ │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -70,19 +70,28 @@ boq-agent/
 │   ├── __init__.py
 │   ├── cli.py              # CLI entry point (typer)
 │   ├── config.py           # Settings & environment
-│   ├── processor.py        # Main orchestrator
+│   ├── processor.py        # Document parsing orchestrator
 │   │
-│   ├── parsers/
-│   │   ├── __init__.py
+│   ├── parsers/            # Document parsing
 │   │   ├── base.py         # Abstract parser interface
 │   │   ├── pdf_parser.py   # PDFPlumber + OCR fallback
 │   │   ├── docx_parser.py  # python-docx
 │   │   ├── excel_parser.py # openpyxl
 │   │   └── image_parser.py # Tesseract OCR
 │   │
-│   └── classification/
-│       ├── __init__.py
-│       └── classifier.py   # Content categorization
+│   ├── classification/     # Content classification
+│   │   └── classifier.py   # Rule-based categorization
+│   │
+│   ├── extraction/         # LLM-based extraction
+│   │   ├── chunker.py      # Smart text chunking with tiktoken
+│   │   ├── prompts.py      # Prompt templates for GPT-4o
+│   │   └── extractor.py    # OpenAI API integration
+│   │
+│   ├── assembly/           # BOQ assembly
+│   │   └── assembler.py    # Deduplication & section builder
+│   │
+│   └── output/             # Excel generation
+│       └── generator.py    # Template-driven Excel output
 │
 ├── templates/
 │   └── default_template.yaml
@@ -90,15 +99,15 @@ boq-agent/
 └── tests/
 ```
 
-## Core Components (Implemented)
+## Core Components
 
-### 1. Document Parsers
+### 1. Document Parsers (Phase 1)
 - **PdfParser**: Uses pdfplumber for text/tables, falls back to Tesseract OCR for scanned pages
 - **DocxParser**: Uses python-docx with section and table extraction
 - **ExcelParser**: Uses openpyxl with table structure detection
 - **ImageParser**: Direct OCR using Tesseract
 
-### 2. Content Classifier
+### 2. Content Classifier (Phase 1)
 Rule-based classification using keywords and regex patterns:
 - Technical Specifications
 - Drawings & Schedules
@@ -108,18 +117,38 @@ Rule-based classification using keywords and regex patterns:
 - Pricing Schedules
 - Contract Terms
 
-### 3. Document Processor
-Main orchestrator that:
-- Processes files in parallel (configurable workers)
-- Routes to appropriate parser
-- Classifies extracted content
-- Aggregates results with statistics
+### 3. LLM Extraction (Phase 2)
+- **TextChunker**: Smart chunking with tiktoken for accurate token counting
+- **PromptTemplates**: Structured prompts for BOQ, scope, specs, and table extraction
+- **BOQExtractor**: OpenAI GPT-4o integration with JSON response parsing
 
-### 4. CLI Interface
+### 4. BOQ Assembler (Phase 2)
+- Section classification based on keywords (12 default sections)
+- Duplicate detection using text similarity (SequenceMatcher)
+- Automatic item renumbering within sections
+- Totals calculation with configurable contingency
+
+### 5. Excel Generator (Phase 2)
+- Template-driven output (YAML configuration)
+- Professional formatting with styles
+- Section headers and subtotals
+- Contingency and grand total calculations
+
+### 6. CLI Interface
 Commands:
-- `boq-agent extract <input> -o <output>` - Extract BOQ
-- `boq-agent analyze <input>` - Show classified content
-- `boq-agent supported` - List supported formats
+```bash
+# Full extraction with AI
+boq-agent extract tender.pdf -o boq.xlsx --project "My Project"
+
+# Skip LLM (parse only)
+boq-agent extract docs/ --skip-llm
+
+# Analyze content categories
+boq-agent analyze tender.pdf --category scope_of_work
+
+# List supported formats
+boq-agent supported
+```
 
 ## Error Handling
 
@@ -148,35 +177,36 @@ openai, tiktoken
 typer, rich, pydantic, pydantic-settings, pyyaml
 ```
 
-## Next Phase (Not Yet Implemented)
-
-1. **LLM Extraction Module** (`src/boq_agent/extraction/`)
-   - Smart text chunking with tiktoken
-   - Prompt templates for BOQ extraction
-   - OpenAI API integration
-   - Response parsing and validation
-
-2. **BOQ Assembly Module** (`src/boq_agent/assembly/`)
-   - Template engine for output structure
-   - Deduplication logic
-   - Hierarchy builder for work sections
-
-3. **Excel Generator** (`src/boq_agent/output/`)
-   - Template-driven Excel creation
-   - Formatting and styling
-   - Formula generation
-
 ## Usage
 
 ```bash
 # Install
+cd boq-agent
 pip install -e ".[dev]"
 
 # Configure
 cp .env.example .env
 # Edit .env with OPENAI_API_KEY
 
-# Run
+# Extract BOQ from documents
 boq-agent extract tender.pdf -o boq_output.xlsx
-boq-agent analyze tender.pdf --category scope_of_work
+
+# Extract with project name and custom contingency
+boq-agent extract docs/ -p "Building A" --contingency 10.0 -o output.xlsx
+
+# Analyze content classification
+boq-agent analyze tender.pdf --category bill_of_quantities
+
+# Run without LLM (parsing only)
+boq-agent extract tender.pdf --skip-llm
 ```
+
+## Output Example
+
+The generated Excel file includes:
+- Header with project name and date
+- Column headers (Item No., Description, Unit, Quantity, Rate, Amount)
+- Organized sections (Preliminaries, Earthworks, Concrete, etc.)
+- Section subtotals
+- Contingency line
+- Grand total with professional formatting
