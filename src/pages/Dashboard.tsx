@@ -212,7 +212,7 @@ export function Dashboard() {
                     borderRadius: '8px',
                     fontSize: '13px'
                   }}
-                  formatter={(value: number) => `${value}%`}
+                  formatter={(value) => `${value ?? 0}%`}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -279,7 +279,7 @@ export function Dashboard() {
                     borderRadius: '8px',
                     fontSize: '13px'
                   }}
-                  formatter={(value: number) => [`${value} ч`, 'Часов']}
+                  formatter={(value) => [`${value ?? 0} ч`, 'Часов']}
                 />
                 <Bar dataKey="hours" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
