@@ -1,0 +1,125 @@
+.stepper {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  overflow-x: auto;
+}
+
+.stepWrapper {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: transparent;
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  min-width: 160px;
+}
+
+.step:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.step:not(:disabled):hover {
+  border-color: var(--accent-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.step.active {
+  border-color: var(--accent-primary);
+  background-color: rgba(37, 99, 235, 0.1);
+}
+
+.step.active .iconWrapper {
+  background-color: var(--accent-primary);
+  color: white;
+}
+
+.step.completed {
+  border-color: var(--accent-success);
+}
+
+.step.completed .iconWrapper {
+  background-color: var(--accent-success);
+  color: white;
+}
+
+.iconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background-color: var(--bg-tertiary);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+
+.stepInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.stepNumber {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stepLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.connector {
+  flex: 1;
+  height: 2px;
+  background-color: var(--border-color);
+  margin: 0 8px;
+  min-width: 20px;
+}
+
+.connectorCompleted {
+  background-color: var(--accent-success);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stepper {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stepWrapper {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .step {
+    width: 100%;
+  }
+
+  .connector {
+    width: 2px;
+    height: 16px;
+    margin: 4px 0;
+  }
+}

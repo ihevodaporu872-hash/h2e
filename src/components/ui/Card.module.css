@@ -1,0 +1,81 @@
+.card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Padding variants */
+.none .content {
+  padding: 0;
+}
+
+.small .content {
+  padding: 12px;
+}
+
+.medium .content {
+  padding: 20px;
+}
+
+.large .content {
+  padding: 28px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.headerText {
+  flex: 1;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 0 0;
+}
+
+.headerAction {
+  flex-shrink: 0;
+}
+
+/* Content */
+.content {
+  color: var(--text-primary);
+}
+
+/* When no header, add padding to top */
+.card:not(:has(.header)) .content {
+  padding-top: 20px;
+}
+
+.none .card:not(:has(.header)) .content {
+  padding-top: 0;
+}
+
+.small .card:not(:has(.header)) .content {
+  padding-top: 12px;
+}
+
+.large .card:not(:has(.header)) .content {
+  padding-top: 28px;
+}

@@ -1,9 +1,7 @@
+import { TenderAnalysis } from './pages/TenderAnalysis';
+
 function App() {
-  return (
-    <div>
-      <h1>H2E</h1>
-    </div>
-  )
+  return <TenderAnalysis />;
 }
 
-export default App
+export default App;
