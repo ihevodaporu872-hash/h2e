@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(pip install:*)",
+      "Bash(python -m pip:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:h2e1.vercel.app)",
+      "Bash(git checkout:*)",
+      "Bash(npm run build:*)"
+    ]
+  }
+}
