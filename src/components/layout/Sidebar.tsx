@@ -16,7 +16,8 @@ import {
   Users,
   Archive,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
+  Sparkles
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import styles from './Sidebar.module.css';
@@ -59,6 +60,7 @@ export function Sidebar() {
       items: [
         { to: '/estimates', icon: FileSpreadsheet, label: 'Сметы', badge: 3 },
         { to: '/boq', icon: ClipboardList, label: 'BOQ / Объёмы' },
+        { to: '/boq-extract', icon: Sparkles, label: 'AI Извлечение BOQ', badgeType: 'success', badge: 'AI' },
         { to: '/compare', icon: GitCompare, label: 'Сравнение версий' },
         { to: '/calculations', icon: Calculator, label: 'Расчёты' },
       ]

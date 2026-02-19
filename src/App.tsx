@@ -11,6 +11,7 @@ import { Documents } from './pages/Documents';
 import { Estimates } from './pages/Estimates';
 import { Compare } from './pages/Compare';
 import { BOQ } from './pages/BOQ';
+import { BOQExtract } from './pages/BOQExtract';
 import { Risks } from './pages/Risks';
 import { QA } from './pages/QA';
 import { Settings } from './pages/Settings';
@@ -31,6 +32,7 @@ function App() {
                 <Route path="/estimates" element={<Estimates />} />
                 <Route path="/compare" element={<Compare />} />
                 <Route path="/boq" element={<BOQ />} />
+                <Route path="/boq-extract" element={<BOQExtract />} />
                 <Route path="/risks" element={<Risks />} />
                 <Route path="/qa" element={<QA />} />
                 <Route path="/settings" element={<Settings />} />
