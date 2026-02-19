@@ -1,45 +1,46 @@
-import { TenderAnalysis } from './pages/TenderAnalysis';
-import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { useState } from 'react';
 
-// Error boundary to catch runtime errors
-class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error: Error | null}> {
-  constructor(props: {children: ReactNode}) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Error caught:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>
-          <h1 style={{ color: '#ef4444' }}>Ошибка загрузки</h1>
-          <p>Произошла ошибка при загрузке компонента:</p>
-          <pre style={{ background: '#1e293b', color: '#f1f5f9', padding: '20px', borderRadius: '8px', overflow: 'auto' }}>
-            {this.state.error?.message}
-          </pre>
-          <pre style={{ background: '#1e293b', color: '#94a3b8', padding: '20px', borderRadius: '8px', overflow: 'auto', fontSize: '12px' }}>
-            {this.state.error?.stack}
-          </pre>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
+// Minimal test page - NO external components
 function App() {
+  const [count, setCount] = useState(0);
+
   return (
-    <ErrorBoundary>
-      <TenderAnalysis />
-    </ErrorBoundary>
+    <div style={{
+      padding: '40px',
+      fontFamily: 'Segoe UI, sans-serif',
+      background: '#0f172a',
+      color: '#f1f5f9',
+      minHeight: '100vh'
+    }}>
+      <h1 style={{ color: '#3b82f6', marginBottom: '20px' }}>
+        H2E - Tender Analysis System
+      </h1>
+      <p style={{ marginBottom: '20px' }}>
+        Если вы видите этот текст, React работает корректно!
+      </p>
+      <button
+        onClick={() => setCount(c => c + 1)}
+        style={{
+          padding: '12px 24px',
+          fontSize: '16px',
+          background: '#3b82f6',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer'
+        }}
+      >
+        Нажато: {count} раз
+      </button>
+      <div style={{ marginTop: '40px', padding: '20px', background: '#1e293b', borderRadius: '8px' }}>
+        <h2 style={{ color: '#10b981', marginBottom: '16px' }}>Статус системы:</h2>
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          <li style={{ marginBottom: '8px' }}>✅ React загружен</li>
+          <li style={{ marginBottom: '8px' }}>✅ Vite build успешен</li>
+          <li style={{ marginBottom: '8px' }}>✅ Vercel deployment работает</li>
+        </ul>
+      </div>
+    </div>
   );
 }
 
