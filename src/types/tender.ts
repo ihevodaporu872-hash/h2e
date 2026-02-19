@@ -24,21 +24,21 @@ export type DocumentProcessingStatus =
   | 'categorized'
   | 'error';
 
-// 13 Standard Construction Scopes (Общестрой)
+// 13 Mandatory Construction Scopes (Moscow Standard - Общестрой)
 export type ConstructionScope =
-  | 'vzis'           // ВЗиС (Временные здания и сооружения)
-  | 'earthwork'      // Земляные работы
-  | 'excavation'     // Ограждение котлована
-  | 'dewatering'     // Водопонижение
-  | 'piling'         // Свайные работы
-  | 'concrete'       // Бетонные работы
-  | 'reinforcement'  // Армирование
-  | 'masonry'        // Каменные работы
-  | 'steel'          // Металлоконструкции
-  | 'roofing'        // Кровельные работы
-  | 'waterproofing'  // Гидроизоляция
-  | 'finishes'       // Отделочные работы
-  | 'external';      // Наружные работы
+  | 'vzis'            // 1. ВЗиС (Временные здания и сооружения)
+  | 'earthwork'       // 2. Земляные работы
+  | 'excavation'      // 3. Ограждение котлована
+  | 'dewatering'      // 4. Водопонижение
+  | 'piling'          // 5. Свайные работы
+  | 'monolith_below'  // 6. Монолит (Ниже 0)
+  | 'monolith_above'  // 7. Монолит (Выше 0)
+  | 'waterproofing'   // 8. Гидроизоляция/Утепление
+  | 'masonry'         // 9. Кладка/Перегородки
+  | 'roofing'         // 10. Кровля
+  | 'facade'          // 11. Фасад
+  | 'windows'         // 12. Окна/Витражи
+  | 'external';       // 13. Благоустройство
 
 // Tender document
 export interface TenderDocument {

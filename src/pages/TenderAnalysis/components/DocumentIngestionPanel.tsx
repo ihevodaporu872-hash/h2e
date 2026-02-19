@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle, AlertCircle, Play, Zap } from 'lucide-react';
 import { FileUpload } from '../../../components/ui/FileUpload';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
@@ -10,9 +10,10 @@ import styles from './DocumentIngestionPanel.module.css';
 
 interface DocumentIngestionPanelProps {
   onStartProcessing: () => void;
+  onStartDemo: () => void;
 }
 
-export function DocumentIngestionPanel({ onStartProcessing }: DocumentIngestionPanelProps) {
+export function DocumentIngestionPanel({ onStartProcessing, onStartDemo }: DocumentIngestionPanelProps) {
   const { uploadedDocuments, addDocument, removeDocument, updateDocumentStatus, isProcessing } = useTender();
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
@@ -37,8 +38,6 @@ export function DocumentIngestionPanel({ onStartProcessing }: DocumentIngestionP
   };
 
   const handleTypeChange = (docId: string, _newType: TenderDocumentType) => {
-    // Update document type in context would need a new method
-    // For now, we'll update the status to trigger re-render
     updateDocumentStatus(docId, 'pending');
   };
 
@@ -47,14 +46,40 @@ export function DocumentIngestionPanel({ onStartProcessing }: DocumentIngestionP
 
   return (
     <div className={styles.panel}>
-      <Card title="Загрузка документов" subtitle="Перетащите файлы тендерной документации">
+      {/* Demo Mode Card */}
+      <Card>
+        <div className={styles.demoCard}>
+          <div className={styles.demoInfo}>
+            <Zap size={32} className={styles.demoIcon} />
+            <div>
+              <h3>Демо-режим</h3>
+              <p>Посмотрите работу системы на примере реального тендера без загрузки файлов</p>
+            </div>
+          </div>
+          <Button
+            onClick={onStartDemo}
+            icon={<Play size={16} />}
+            disabled={isProcessing}
+          >
+            Запустить демо
+          </Button>
+        </div>
+      </Card>
+
+      {/* Divider */}
+      <div className={styles.divider}>
+        <span>или загрузите свои документы</span>
+      </div>
+
+      {/* File Upload Card */}
+      <Card title="Загрузка документов" subtitle="Тендерная документация (PDF, Excel, Word)">
         <div className={styles.content}>
           <FileUpload
             onFileSelect={handleFilesSelected}
             accept=".xlsx,.xls,.pdf,.docx,.doc"
             multiple={true}
             label="Перетащите файлы сюда"
-            hint="Scope of Works, Technical Report, Client BOQ"
+            hint="BOQ Заказчика, ТЗ, Технический отчёт"
           />
 
           {pendingFiles.length > 0 && (
@@ -96,6 +121,25 @@ export function DocumentIngestionPanel({ onStartProcessing }: DocumentIngestionP
           </div>
         </Card>
       )}
+
+      {/* Info about 13 scopes */}
+      <Card title="13 обязательных разделов (Московский стандарт)">
+        <div className={styles.scopesList}>
+          <div className={styles.scopeItem}>1. ВЗиС</div>
+          <div className={styles.scopeItem}>2. Земляные работы</div>
+          <div className={styles.scopeItem}>3. Ограждение котлована</div>
+          <div className={styles.scopeItem}>4. Водопонижение</div>
+          <div className={styles.scopeItem}>5. Свайные работы</div>
+          <div className={styles.scopeItem}>6. Монолит (Ниже 0)</div>
+          <div className={styles.scopeItem}>7. Монолит (Выше 0)</div>
+          <div className={styles.scopeItem}>8. Гидроизоляция/Утепление</div>
+          <div className={styles.scopeItem}>9. Кладка/Перегородки</div>
+          <div className={styles.scopeItem}>10. Кровля</div>
+          <div className={styles.scopeItem}>11. Фасад</div>
+          <div className={styles.scopeItem}>12. Окна/Витражи</div>
+          <div className={styles.scopeItem}>13. Благоустройство</div>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -162,7 +206,7 @@ function StatusBadge({ status }: { status: DocumentProcessingStatus }) {
 function detectDocumentType(fileName: string): TenderDocumentType {
   const lower = fileName.toLowerCase();
   if (lower.includes('scope') || lower.includes('sow') || lower.includes('тз')) return 'scope_of_works';
-  if (lower.includes('technical') || lower.includes('tech') || lower.includes('отчёт')) return 'technical_report';
+  if (lower.includes('technical') || lower.includes('tech') || lower.includes('отчёт') || lower.includes('пз')) return 'technical_report';
   if (lower.includes('boq') || lower.includes('боq') || lower.includes('ведомость')) return 'client_boq';
   if (lower.includes('spec') || lower.includes('спец')) return 'specifications';
   if (lower.includes('drawing') || lower.includes('чертеж')) return 'drawings_list';
