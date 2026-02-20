@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import './App.css';
 
 type Theme = 'light' | 'dark';
@@ -23,15 +24,30 @@ const SCOPES = [
 type WorkflowStep = 'upload' | 'analyze' | 'review' | 'export';
 
 interface UploadedFile {
+  file: File;
   name: string;
   size: number;
   type: string;
+}
+
+interface ParsedSheet {
+  name: string;
+  data: (string | number | null)[][];
+  headers: string[];
+}
+
+interface ParsedFile {
+  fileName: string;
+  sheets: ParsedSheet[];
 }
 
 function App() {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [parsedFiles, setParsedFiles] = useState<ParsedFile[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedSheet, setSelectedSheet] = useState<{ fileIndex: number; sheetIndex: number } | null>(null);
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('theme');
     return (saved as Theme) || 'light';
@@ -62,25 +78,78 @@ function App() {
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const droppedFiles = Array.from(e.dataTransfer.files).map(f => ({
+  const parseExcelFile = async (file: File): Promise<ParsedFile> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+
+          const sheets: ParsedSheet[] = workbook.SheetNames.map(sheetName => {
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json<(string | number | null)[]>(worksheet, {
+              header: 1,
+              defval: null
+            });
+
+            // Get headers from first row
+            const headers = jsonData[0]?.map(h => String(h || '')) || [];
+
+            return {
+              name: sheetName,
+              data: jsonData,
+              headers
+            };
+          });
+
+          resolve({
+            fileName: file.name,
+            sheets
+          });
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsBinaryString(file);
+    });
+  };
+
+  const processFiles = async (fileList: File[]) => {
+    const newFiles: UploadedFile[] = fileList.map(f => ({
+      file: f,
       name: f.name,
       size: f.size,
       type: f.type,
     }));
-    setFiles(prev => [...prev, ...droppedFiles]);
+    setFiles(prev => [...prev, ...newFiles]);
+
+    // Parse Excel files
+    const excelFiles = fileList.filter(f => f.name.match(/\.xlsx?$/i));
+    if (excelFiles.length > 0) {
+      setIsProcessing(true);
+      try {
+        const parsed = await Promise.all(excelFiles.map(parseExcelFile));
+        setParsedFiles(prev => [...prev, ...parsed]);
+      } catch (error) {
+        console.error('Error parsing Excel files:', error);
+      }
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    processFiles(droppedFiles);
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files).map(f => ({
-        name: f.name,
-        size: f.size,
-        type: f.type,
-      }));
-      setFiles(prev => [...prev, ...selectedFiles]);
+      const selectedFiles = Array.from(e.target.files);
+      processFiles(selectedFiles);
     }
   };
 
@@ -91,7 +160,26 @@ function App() {
   };
 
   const removeFile = (index: number) => {
+    const fileToRemove = files[index];
     setFiles(prev => prev.filter((_, i) => i !== index));
+    setParsedFiles(prev => prev.filter(p => p.fileName !== fileToRemove.name));
+  };
+
+  const resetAll = () => {
+    setFiles([]);
+    setParsedFiles([]);
+    setSelectedSheet(null);
+    setCurrentStep('upload');
+  };
+
+  const getTotalRows = () => {
+    return parsedFiles.reduce((total, file) =>
+      total + file.sheets.reduce((sheetTotal, sheet) => sheetTotal + sheet.data.length, 0), 0
+    );
+  };
+
+  const getTotalSheets = () => {
+    return parsedFiles.reduce((total, file) => total + file.sheets.length, 0);
   };
 
   return (
@@ -110,7 +198,7 @@ function App() {
             <button className="theme-btn" onClick={toggleTheme}>
               {theme === 'light' ? '🌙' : '☀️'}
             </button>
-            <button className="reset-btn" onClick={() => { setFiles([]); setCurrentStep('upload'); }}>
+            <button className="reset-btn" onClick={resetAll}>
               ↻ Сброс
             </button>
           </div>
@@ -158,6 +246,14 @@ function App() {
               />
             </div>
 
+            {/* Processing indicator */}
+            {isProcessing && (
+              <div className="processing-indicator">
+                <span className="spinner">⏳</span>
+                <span>Обработка файлов...</span>
+              </div>
+            )}
+
             {/* Uploaded Files */}
             {files.length > 0 && (
               <div className="files-list">
@@ -173,9 +269,18 @@ function App() {
                     <button className="remove-file" onClick={() => removeFile(index)}>✕</button>
                   </div>
                 ))}
+
+                {/* Parsed data summary */}
+                {parsedFiles.length > 0 && (
+                  <div className="parsed-summary">
+                    <span>✓ Распознано: {getTotalSheets()} листов, {getTotalRows()} строк</span>
+                  </div>
+                )}
+
                 <button
                   className="analyze-btn"
                   onClick={() => setCurrentStep('analyze')}
+                  disabled={isProcessing}
                 >
                   Начать анализ →
                 </button>
@@ -188,6 +293,66 @@ function App() {
           <section className="analyze-section">
             <h2>Классификация по разделам</h2>
             <p className="section-desc">13 обязательных разделов (Московский стандарт)</p>
+
+            {/* Parsed Data Preview */}
+            {parsedFiles.length > 0 && (
+              <div className="parsed-data-section">
+                <h3>📊 Загруженные данные</h3>
+
+                {/* Sheet selector */}
+                <div className="sheet-tabs">
+                  {parsedFiles.map((file, fileIndex) => (
+                    file.sheets.map((sheet, sheetIndex) => (
+                      <button
+                        key={`${fileIndex}-${sheetIndex}`}
+                        className={`sheet-tab ${selectedSheet?.fileIndex === fileIndex && selectedSheet?.sheetIndex === sheetIndex ? 'active' : ''}`}
+                        onClick={() => setSelectedSheet({ fileIndex, sheetIndex })}
+                      >
+                        {sheet.name}
+                        <span className="row-count">({sheet.data.length} строк)</span>
+                      </button>
+                    ))
+                  ))}
+                </div>
+
+                {/* Data preview */}
+                {selectedSheet && parsedFiles[selectedSheet.fileIndex] && (
+                  <div className="data-preview">
+                    <table className="preview-table">
+                      <thead>
+                        <tr>
+                          {parsedFiles[selectedSheet.fileIndex].sheets[selectedSheet.sheetIndex].headers.slice(0, 8).map((header, i) => (
+                            <th key={i}>{header || `Колонка ${i + 1}`}</th>
+                          ))}
+                          {parsedFiles[selectedSheet.fileIndex].sheets[selectedSheet.sheetIndex].headers.length > 8 && (
+                            <th>...</th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsedFiles[selectedSheet.fileIndex].sheets[selectedSheet.sheetIndex].data.slice(1, 11).map((row, rowIndex) => (
+                          <tr key={rowIndex}>
+                            {row.slice(0, 8).map((cell, cellIndex) => (
+                              <td key={cellIndex}>{cell !== null ? String(cell) : ''}</td>
+                            ))}
+                            {row.length > 8 && <td>...</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {parsedFiles[selectedSheet.fileIndex].sheets[selectedSheet.sheetIndex].data.length > 11 && (
+                      <p className="preview-note">
+                        Показано 10 из {parsedFiles[selectedSheet.fileIndex].sheets[selectedSheet.sheetIndex].data.length - 1} строк
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {!selectedSheet && parsedFiles.length > 0 && (
+                  <p className="select-sheet-hint">Выберите лист для просмотра данных</p>
+                )}
+              </div>
+            )}
 
             <div className="scopes-grid">
               {SCOPES.map(scope => (
