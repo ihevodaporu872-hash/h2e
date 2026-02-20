@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
+
+type Theme = 'light' | 'dark';
 
 // 13 Standard Scopes (Общестрой)
 const SCOPES = [
@@ -30,6 +32,19 @@ function App() {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    const saved = localStorage.getItem('theme');
+    return (saved as Theme) || 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   const steps: { id: WorkflowStep; label: string; icon: string }[] = [
     { id: 'upload', label: 'Загрузка', icon: '📤' },
@@ -91,9 +106,14 @@ function App() {
               <p>Анализ тендерной документации • 13 разделов (Общестрой)</p>
             </div>
           </div>
-          <button className="reset-btn" onClick={() => { setFiles([]); setCurrentStep('upload'); }}>
-            ↻ Сброс
-          </button>
+          <div className="header-actions">
+            <button className="theme-btn" onClick={toggleTheme}>
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+            <button className="reset-btn" onClick={() => { setFiles([]); setCurrentStep('upload'); }}>
+              ↻ Сброс
+            </button>
+          </div>
         </div>
       </header>
 

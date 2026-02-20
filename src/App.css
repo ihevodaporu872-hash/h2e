@@ -6,12 +6,22 @@
   box-sizing: border-box;
 }
 
-:root {
+:root,
+[data-theme="light"] {
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
   --primary-light: #dbeafe;
   --success: #16a34a;
   --warning: #f59e0b;
+  --bg-main: #f9fafb;
+  --bg-card: #ffffff;
+  --bg-hover: #f3f4f6;
+  --border: #e5e7eb;
+  --border-hover: #d1d5db;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --text-faint: #9ca3af;
   --gray-50: #f9fafb;
   --gray-100: #f3f4f6;
   --gray-200: #e5e7eb;
@@ -27,11 +37,41 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }
 
+[data-theme="dark"] {
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --primary-light: #1e3a5f;
+  --success: #22c55e;
+  --warning: #fbbf24;
+  --bg-main: #0f172a;
+  --bg-card: #1e293b;
+  --bg-hover: #334155;
+  --border: #334155;
+  --border-hover: #475569;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --gray-50: #1e293b;
+  --gray-100: #334155;
+  --gray-200: #475569;
+  --gray-300: #64748b;
+  --gray-400: #94a3b8;
+  --gray-500: #cbd5e1;
+  --gray-600: #e2e8f0;
+  --gray-700: #f1f5f9;
+  --gray-800: #f8fafc;
+  --gray-900: #ffffff;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--gray-50);
-  color: var(--gray-800);
+  background: var(--bg-main);
+  color: var(--text-primary);
   min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
 }
 
 .app {
@@ -42,12 +82,13 @@ body {
 
 /* Header */
 .header {
-  background: white;
-  border-bottom: 1px solid var(--gray-200);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
   padding: 1rem 2rem;
   position: sticky;
   top: 0;
   z-index: 100;
+  transition: background 0.3s, border-color 0.3s;
 }
 
 .header-content {
@@ -71,38 +112,64 @@ body {
 .logo h1 {
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--gray-900);
+  color: var(--text-primary);
 }
 
 .logo p {
   font-size: 0.875rem;
-  color: var(--gray-500);
+  color: var(--text-muted);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.theme-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.theme-btn:hover {
+  background: var(--border);
+  transform: rotate(15deg);
 }
 
 .reset-btn {
-  background: var(--gray-100);
-  border: 1px solid var(--gray-200);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
   padding: 0.5rem 1rem;
   border-radius: 8px;
-  color: var(--gray-600);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.875rem;
   transition: all 0.2s;
 }
 
 .reset-btn:hover {
-  background: var(--gray-200);
-  color: var(--gray-800);
+  background: var(--border);
+  color: var(--text-primary);
 }
 
 /* Workflow Steps */
 .workflow {
-  background: white;
-  border-bottom: 1px solid var(--gray-200);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
   padding: 1rem 2rem;
   display: flex;
   justify-content: center;
   gap: 1rem;
+  transition: background 0.3s, border-color 0.3s;
 }
 
 .workflow-step {
@@ -118,7 +185,7 @@ body {
 }
 
 .workflow-step:hover {
-  background: var(--gray-50);
+  background: var(--bg-hover);
 }
 
 .workflow-step.active {
@@ -138,7 +205,7 @@ body {
 .step-label {
   font-size: 0.625rem;
   font-weight: 600;
-  color: var(--gray-400);
+  color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -146,7 +213,7 @@ body {
 .step-name {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--gray-700);
+  color: var(--text-secondary);
 }
 
 .workflow-step.active .step-label,
@@ -171,8 +238,8 @@ body {
 }
 
 .upload-zone {
-  background: white;
-  border: 2px dashed var(--gray-300);
+  background: var(--bg-card);
+  border: 2px dashed var(--border-hover);
   border-radius: var(--radius);
   padding: 4rem 2rem;
   text-align: center;
@@ -194,19 +261,19 @@ body {
 
 .upload-zone h3 {
   font-size: 1.25rem;
-  color: var(--gray-700);
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 
 .upload-zone p {
-  color: var(--gray-500);
+  color: var(--text-muted);
   font-size: 0.875rem;
 }
 
 .upload-zone .file-types {
   margin-top: 1rem;
   font-size: 0.75rem;
-  color: var(--gray-400);
+  color: var(--text-faint);
 }
 
 .file-input {
@@ -218,15 +285,16 @@ body {
 
 /* Files List */
 .files-list {
-  background: white;
+  background: var(--bg-card);
   border-radius: var(--radius);
   padding: 1.5rem;
   box-shadow: var(--shadow);
+  transition: background 0.3s;
 }
 
 .files-list h4 {
   font-size: 0.875rem;
-  color: var(--gray-600);
+  color: var(--text-secondary);
   margin-bottom: 1rem;
 }
 
@@ -235,7 +303,7 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem;
-  background: var(--gray-50);
+  background: var(--bg-hover);
   border-radius: 8px;
   margin-bottom: 0.5rem;
 }
@@ -248,18 +316,18 @@ body {
   flex: 1;
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--gray-700);
+  color: var(--text-secondary);
 }
 
 .file-size {
   font-size: 0.75rem;
-  color: var(--gray-400);
+  color: var(--text-faint);
 }
 
 .remove-file {
   background: none;
   border: none;
-  color: var(--gray-400);
+  color: var(--text-faint);
   cursor: pointer;
   padding: 0.25rem;
   font-size: 1rem;
@@ -292,12 +360,12 @@ body {
 .review-section h2,
 .export-section h2 {
   font-size: 1.5rem;
-  color: var(--gray-900);
+  color: var(--text-primary);
   margin-bottom: 0.5rem;
 }
 
 .section-desc {
-  color: var(--gray-500);
+  color: var(--text-muted);
   margin-bottom: 2rem;
 }
 
@@ -309,7 +377,7 @@ body {
 }
 
 .scope-card {
-  background: white;
+  background: var(--bg-card);
   border-radius: var(--radius);
   padding: 1rem 1.25rem;
   display: flex;
@@ -323,6 +391,7 @@ body {
 .scope-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+  background: var(--bg-hover);
 }
 
 .scope-number {
@@ -344,13 +413,13 @@ body {
 
 .scope-info h4 {
   font-size: 0.875rem;
-  color: var(--gray-800);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 .scope-info p {
   font-size: 0.75rem;
-  color: var(--gray-400);
+  color: var(--text-faint);
 }
 
 .scope-status {
@@ -359,16 +428,17 @@ body {
 
 /* Review Section */
 .validation-card {
-  background: white;
+  background: var(--bg-card);
   border-radius: var(--radius);
   padding: 1.5rem;
   box-shadow: var(--shadow);
   margin-bottom: 2rem;
+  transition: background 0.3s;
 }
 
 .validation-card h3 {
   font-size: 1rem;
-  color: var(--gray-800);
+  color: var(--text-primary);
   margin-bottom: 1rem;
 }
 
@@ -383,10 +453,10 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem;
-  background: var(--gray-50);
+  background: var(--bg-hover);
   border-radius: 8px;
   font-size: 0.875rem;
-  color: var(--gray-600);
+  color: var(--text-secondary);
 }
 
 .check-icon {
@@ -395,12 +465,13 @@ body {
 
 /* Export Section */
 .export-preview {
-  background: white;
+  background: var(--bg-card);
   border-radius: var(--radius);
   padding: 1.5rem;
   box-shadow: var(--shadow);
   margin-bottom: 2rem;
   overflow-x: auto;
+  transition: background 0.3s;
 }
 
 .boq-table {
@@ -413,17 +484,17 @@ body {
 .boq-table td {
   padding: 0.75rem 1rem;
   text-align: left;
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border);
 }
 
 .boq-table th {
-  background: var(--gray-50);
+  background: var(--bg-hover);
   font-weight: 600;
-  color: var(--gray-600);
+  color: var(--text-secondary);
 }
 
 .boq-table td {
-  color: var(--gray-700);
+  color: var(--text-secondary);
 }
 
 .export-actions {
@@ -477,14 +548,14 @@ body {
 }
 
 .btn-secondary {
-  background: white;
-  color: var(--gray-600);
-  border: 1px solid var(--gray-300);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 
 .btn-secondary:hover {
-  background: var(--gray-50);
-  border-color: var(--gray-400);
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
 }
 
 /* Responsive */
