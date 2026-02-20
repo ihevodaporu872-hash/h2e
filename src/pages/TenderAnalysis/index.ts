@@ -1,1 +1,0 @@
-export { TenderAnalysis } from './TenderAnalysis';
