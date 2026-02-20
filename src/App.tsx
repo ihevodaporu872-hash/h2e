@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import './App.css';
 
 type Theme = 'light' | 'dark';
@@ -18,6 +18,334 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'faq', label: 'Вопросы-Ответы', icon: '❓' },
 ];
 
+// Work categories (13 categories)
+const WORK_CATEGORIES = [
+  'Монолитные работы',
+  'Кладочные работы',
+  'Фасадные работы',
+  'Кровельные работы',
+  'Отделочные работы',
+  'Электромонтажные работы',
+  'Сантехнические работы',
+  'Вентиляция и кондиционирование',
+  'Слаботочные системы',
+  'Лифтовое оборудование',
+  'Благоустройство',
+  'Земляные работы',
+  'Свайные работы',
+];
+
+// Types for project data
+interface WorkItem {
+  id: string;
+  category: string;
+  responsible: string;
+  dateChanged: string;
+  comment: string;
+  // Direct Costs (ПЗ)
+  pzTotal: number;      // ПЗ - ИТОГО ЗА ЕД
+  pzLabor: number;      // ПЗ - РАБ
+  pzMaterial: number;   // ПЗ - МАТ
+  // Commercial Quotation
+  kp: number;           // КП
+  // Physical metrics
+  area: number;         // S - Площадь (m²)
+  volume: number;       // V - Объем (m³)
+  vsRatio: number;      // V/S ratio
+  // Material metrics
+  concreteGrade: string;
+  concreteVolume: number;
+  rebarTonnage: number;
+  status: 'pending' | 'in_progress' | 'completed' | 'review';
+}
+
+interface Project {
+  id: string;
+  name: string;
+  code: string;
+  address: string;
+  totalArea: number;
+  workItems: WorkItem[];
+  expanded?: boolean;
+}
+
+// Mock function to simulate parsing Excel data
+function parseExcelToProjectData(): Project[] {
+  // This simulates parsing an Excel file with construction project data
+  const mockProjects: Project[] = [
+    {
+      id: 'proj-1',
+      name: 'ЖК SVET',
+      code: 'SVET-2024',
+      address: 'г. Москва, ул. Светлая, д. 15',
+      totalArea: 125000,
+      expanded: true,
+      workItems: [
+        {
+          id: 'w1-1',
+          category: 'Монолитные работы',
+          responsible: 'Иванов А.С.',
+          dateChanged: '2024-02-15',
+          comment: 'Объём рассчитан по BIM модели. Учтены все конструктивные элементы.',
+          pzTotal: 8500,
+          pzLabor: 3200,
+          pzMaterial: 5300,
+          kp: 9200,
+          area: 45000,
+          volume: 12500,
+          vsRatio: 0.278,
+          concreteGrade: 'B30 W8 F150',
+          concreteVolume: 11800,
+          rebarTonnage: 1450,
+          status: 'in_progress',
+        },
+        {
+          id: 'w1-2',
+          category: 'Кладочные работы',
+          responsible: 'Петров В.И.',
+          dateChanged: '2024-02-14',
+          comment: 'Газобетон D500, толщина 400мм. Перемычки ж/б.',
+          pzTotal: 4200,
+          pzLabor: 1800,
+          pzMaterial: 2400,
+          kp: 4600,
+          area: 32000,
+          volume: 8400,
+          vsRatio: 0.263,
+          concreteGrade: '-',
+          concreteVolume: 0,
+          rebarTonnage: 45,
+          status: 'pending',
+        },
+        {
+          id: 'w1-3',
+          category: 'Фасадные работы',
+          responsible: 'Сидоров К.Н.',
+          dateChanged: '2024-02-10',
+          comment: 'НВФ с утеплителем 150мм, керамогранит.',
+          pzTotal: 6800,
+          pzLabor: 2500,
+          pzMaterial: 4300,
+          kp: 7400,
+          area: 28000,
+          volume: 0,
+          vsRatio: 0,
+          concreteGrade: '-',
+          concreteVolume: 0,
+          rebarTonnage: 0,
+          status: 'review',
+        },
+        {
+          id: 'w1-4',
+          category: 'Кровельные работы',
+          responsible: 'Козлов Д.М.',
+          dateChanged: '2024-02-08',
+          comment: 'ПВХ мембрана, утепление 200мм.',
+          pzTotal: 3200,
+          pzLabor: 1400,
+          pzMaterial: 1800,
+          kp: 3500,
+          area: 4200,
+          volume: 840,
+          vsRatio: 0.2,
+          concreteGrade: '-',
+          concreteVolume: 0,
+          rebarTonnage: 0,
+          status: 'completed',
+        },
+        {
+          id: 'w1-5',
+          category: 'Земляные работы',
+          responsible: 'Новиков П.А.',
+          dateChanged: '2024-01-20',
+          comment: 'Котлован глубиной 12м. Грунт II категории.',
+          pzTotal: 2100,
+          pzLabor: 900,
+          pzMaterial: 1200,
+          kp: 2400,
+          area: 5200,
+          volume: 62400,
+          vsRatio: 12,
+          concreteGrade: '-',
+          concreteVolume: 0,
+          rebarTonnage: 0,
+          status: 'completed',
+        },
+        {
+          id: 'w1-6',
+          category: 'Свайные работы',
+          responsible: 'Морозов Е.В.',
+          dateChanged: '2024-01-25',
+          comment: 'Буронабивные сваи Ø620, L=24м, 156 шт.',
+          pzTotal: 4500,
+          pzLabor: 1800,
+          pzMaterial: 2700,
+          kp: 4900,
+          area: 0,
+          volume: 2890,
+          vsRatio: 0,
+          concreteGrade: 'B25 W6',
+          concreteVolume: 2890,
+          rebarTonnage: 380,
+          status: 'completed',
+        },
+      ],
+    },
+    {
+      id: 'proj-2',
+      name: 'Садовническая 76',
+      code: 'SAD76-2024',
+      address: 'г. Москва, Садовническая наб., д. 76',
+      totalArea: 45000,
+      expanded: false,
+      workItems: [
+        {
+          id: 'w2-1',
+          category: 'Монолитные работы',
+          responsible: 'Белов С.А.',
+          dateChanged: '2024-02-12',
+          comment: 'Реконструкция. Усиление существующих конструкций.',
+          pzTotal: 12500,
+          pzLabor: 5200,
+          pzMaterial: 7300,
+          kp: 13800,
+          area: 18000,
+          volume: 5400,
+          vsRatio: 0.3,
+          concreteGrade: 'B35 W10 F200',
+          concreteVolume: 5100,
+          rebarTonnage: 720,
+          status: 'in_progress',
+        },
+        {
+          id: 'w2-2',
+          category: 'Отделочные работы',
+          responsible: 'Орлова М.П.',
+          dateChanged: '2024-02-11',
+          comment: 'Премиум отделка. Натуральный камень, паркет.',
+          pzTotal: 18500,
+          pzLabor: 8200,
+          pzMaterial: 10300,
+          kp: 20200,
+          area: 42000,
+          volume: 0,
+          vsRatio: 0,
+          concreteGrade: '-',
+          concreteVolume: 0,
+          rebarTonnage: 0,
+          status: 'pending',
+        },
+        {
+          id: 'w2-3',
+          category: 'Электромонтажные работы',
+          responsible: 'Волков И.Д.',
+          dateChanged: '2024-02-09',
+          comment: 'Полная замена электрики. Умный дом.',
+          pzTotal: 8900,
+          pzLabor: 4500,
+          pzMaterial: 4400,
+          kp: 9800,
+          area: 45000,
+          volume: 0,
+          vsRatio: 0,
+          concreteGrade: '-',
+          concreteVolume: 0,
+          rebarTonnage: 0,
+          status: 'review',
+        },
+        {
+          id: 'w2-4',
+          category: 'Лифтовое оборудование',
+          responsible: 'Соколов А.Н.',
+          dateChanged: '2024-02-05',
+          comment: '4 лифта OTIS, грузоподъёмность 1000кг.',
+          pzTotal: 24000,
+          pzLabor: 6000,
+          pzMaterial: 18000,
+          kp: 26500,
+          area: 0,
+          volume: 0,
+          vsRatio: 0,
+          concreteGrade: '-',
+          concreteVolume: 0,
+          rebarTonnage: 0,
+          status: 'pending',
+        },
+      ],
+    },
+    {
+      id: 'proj-3',
+      name: 'ЖК Парковый',
+      code: 'PARK-2024',
+      address: 'г. Москва, ул. Парковая, д. 25',
+      totalArea: 85000,
+      expanded: false,
+      workItems: [
+        {
+          id: 'w3-1',
+          category: 'Монолитные работы',
+          responsible: 'Кузнецов В.В.',
+          dateChanged: '2024-02-14',
+          comment: 'Монолитный каркас, безбалочное перекрытие 200мм.',
+          pzTotal: 7200,
+          pzLabor: 2800,
+          pzMaterial: 4400,
+          kp: 7900,
+          area: 35000,
+          volume: 9800,
+          vsRatio: 0.28,
+          concreteGrade: 'B30 W6 F100',
+          concreteVolume: 9200,
+          rebarTonnage: 1100,
+          status: 'in_progress',
+        },
+        {
+          id: 'w3-2',
+          category: 'Благоустройство',
+          responsible: 'Зайцева Е.К.',
+          dateChanged: '2024-02-13',
+          comment: 'Детская площадка, парковка на 200 м/м.',
+          pzTotal: 5600,
+          pzLabor: 2200,
+          pzMaterial: 3400,
+          kp: 6100,
+          area: 12000,
+          volume: 2400,
+          vsRatio: 0.2,
+          concreteGrade: 'B20',
+          concreteVolume: 1800,
+          rebarTonnage: 85,
+          status: 'pending',
+        },
+        {
+          id: 'w3-3',
+          category: 'Вентиляция и кондиционирование',
+          responsible: 'Попов Н.С.',
+          dateChanged: '2024-02-07',
+          comment: 'Приточно-вытяжная с рекуперацией. VRF система.',
+          pzTotal: 9800,
+          pzLabor: 3800,
+          pzMaterial: 6000,
+          kp: 10700,
+          area: 85000,
+          volume: 0,
+          vsRatio: 0,
+          concreteGrade: '-',
+          concreteVolume: 0,
+          rebarTonnage: 0,
+          status: 'review',
+        },
+      ],
+    },
+  ];
+
+  return mockProjects;
+}
+
+// Sort types
+type SortField = 'category' | 'responsible' | 'dateChanged' | 'pzTotal' | 'pzLabor' | 'pzMaterial' | 'kp' | 'area' | 'volume' | 'vsRatio' | 'rebarTonnage';
+type SortDirection = 'asc' | 'desc';
+
 function App() {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('theme');
@@ -28,10 +356,23 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  // Indicators page state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [sortField, setSortField] = useState<SortField>('category');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Load mock data on mount
+  useEffect(() => {
+    const data = parseExcelToProjectData();
+    setProjects(data);
+  }, []);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -45,6 +386,310 @@ function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setShowUserMenu(false);
+  };
+
+  const toggleProjectExpanded = (projectId: string) => {
+    setProjects(prev => prev.map(p =>
+      p.id === projectId ? { ...p, expanded: !p.expanded } : p
+    ));
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Filter and sort work items
+  const getFilteredSortedItems = (items: WorkItem[]): WorkItem[] => {
+    let filtered = items;
+
+    // Apply category filter
+    if (filterCategory !== 'all') {
+      filtered = filtered.filter(item => item.category === filterCategory);
+    }
+
+    // Apply search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.category.toLowerCase().includes(query) ||
+        item.responsible.toLowerCase().includes(query) ||
+        item.comment.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply sorting
+    return [...filtered].sort((a, b) => {
+      let aVal: string | number = a[sortField];
+      let bVal: string | number = b[sortField];
+
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = (bVal as string).toLowerCase();
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const formatNumber = (num: number): string => {
+    return num.toLocaleString('ru-RU');
+  };
+
+  const formatCurrency = (num: number): string => {
+    return num.toLocaleString('ru-RU') + ' ₽';
+  };
+
+  const getStatusBadge = (status: WorkItem['status']) => {
+    const statusMap = {
+      pending: { label: 'Ожидание', class: 'status-pending' },
+      in_progress: { label: 'В работе', class: 'status-progress' },
+      completed: { label: 'Завершено', class: 'status-completed' },
+      review: { label: 'На проверке', class: 'status-review' },
+    };
+    const { label, class: className } = statusMap[status];
+    return <span className={`status-badge ${className}`}>{label}</span>;
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return '↕';
+    return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
+  // Calculate project totals
+  const getProjectTotals = (items: WorkItem[]) => {
+    return items.reduce((acc, item) => ({
+      pzTotal: acc.pzTotal + item.pzTotal,
+      pzLabor: acc.pzLabor + item.pzLabor,
+      pzMaterial: acc.pzMaterial + item.pzMaterial,
+      kp: acc.kp + item.kp,
+      area: acc.area + item.area,
+      volume: acc.volume + item.volume,
+      concreteVolume: acc.concreteVolume + item.concreteVolume,
+      rebarTonnage: acc.rebarTonnage + item.rebarTonnage,
+    }), {
+      pzTotal: 0,
+      pzLabor: 0,
+      pzMaterial: 0,
+      kp: 0,
+      area: 0,
+      volume: 0,
+      concreteVolume: 0,
+      rebarTonnage: 0,
+    });
+  };
+
+  const renderIndicatorsPage = () => {
+    return (
+      <div className="indicators-page">
+        <div className="page-header">
+          <div className="page-title-section">
+            <h1>Основные показатели</h1>
+            <p className="page-description">Сводка по проектам и видам работ</p>
+          </div>
+
+          <div className="page-actions">
+            <button className="btn-secondary">
+              <span>📥</span> Импорт Excel
+            </button>
+            <button className="btn-primary">
+              <span>📤</span> Экспорт
+            </button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="filters-bar">
+          <div className="search-box">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder="Поиск по категории, ответственному, комментарию..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <select
+            className="filter-select"
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+          >
+            <option value="all">Все категории</option>
+            {WORK_CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Projects */}
+        <div className="projects-container">
+          {projects.map(project => {
+            const filteredItems = getFilteredSortedItems(project.workItems);
+            const totals = getProjectTotals(project.workItems);
+
+            if (filterCategory !== 'all' && filteredItems.length === 0) {
+              return null;
+            }
+
+            return (
+              <div key={project.id} className="project-section">
+                {/* Project Header */}
+                <div
+                  className="project-header"
+                  onClick={() => toggleProjectExpanded(project.id)}
+                >
+                  <div className="project-expand">
+                    {project.expanded ? '▼' : '▶'}
+                  </div>
+                  <div className="project-info">
+                    <h2>{project.name}</h2>
+                    <span className="project-code">{project.code}</span>
+                    <span className="project-address">{project.address}</span>
+                  </div>
+                  <div className="project-stats">
+                    <div className="project-stat">
+                      <span className="stat-label">Площадь</span>
+                      <span className="stat-value">{formatNumber(project.totalArea)} м²</span>
+                    </div>
+                    <div className="project-stat">
+                      <span className="stat-label">Бетон</span>
+                      <span className="stat-value">{formatNumber(totals.concreteVolume)} м³</span>
+                    </div>
+                    <div className="project-stat">
+                      <span className="stat-label">Арматура</span>
+                      <span className="stat-value">{formatNumber(totals.rebarTonnage)} т</span>
+                    </div>
+                    <div className="project-stat highlight">
+                      <span className="stat-label">ПЗ Итого</span>
+                      <span className="stat-value">{formatCurrency(totals.pzTotal * 1000)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Work Items Table */}
+                {project.expanded && (
+                  <div className="work-items-table-container">
+                    <table className="work-items-table">
+                      <thead>
+                        <tr>
+                          <th className="th-category" onClick={() => handleSort('category')}>
+                            Вид работ {getSortIcon('category')}
+                          </th>
+                          <th className="th-responsible" onClick={() => handleSort('responsible')}>
+                            Ответственный {getSortIcon('responsible')}
+                          </th>
+                          <th className="th-date" onClick={() => handleSort('dateChanged')}>
+                            Дата изм. {getSortIcon('dateChanged')}
+                          </th>
+                          <th className="th-comment">Комментарий</th>
+                          <th className="th-number" onClick={() => handleSort('pzTotal')}>
+                            ПЗ Итого {getSortIcon('pzTotal')}
+                          </th>
+                          <th className="th-number" onClick={() => handleSort('pzLabor')}>
+                            ПЗ Раб {getSortIcon('pzLabor')}
+                          </th>
+                          <th className="th-number" onClick={() => handleSort('pzMaterial')}>
+                            ПЗ Мат {getSortIcon('pzMaterial')}
+                          </th>
+                          <th className="th-number" onClick={() => handleSort('kp')}>
+                            КП {getSortIcon('kp')}
+                          </th>
+                          <th className="th-number" onClick={() => handleSort('area')}>
+                            S, м² {getSortIcon('area')}
+                          </th>
+                          <th className="th-number" onClick={() => handleSort('volume')}>
+                            V, м³ {getSortIcon('volume')}
+                          </th>
+                          <th className="th-number" onClick={() => handleSort('vsRatio')}>
+                            V/S {getSortIcon('vsRatio')}
+                          </th>
+                          <th className="th-concrete">Бетон</th>
+                          <th className="th-number" onClick={() => handleSort('rebarTonnage')}>
+                            Арм., т {getSortIcon('rebarTonnage')}
+                          </th>
+                          <th className="th-status">Статус</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredItems.map(item => (
+                          <tr key={item.id}>
+                            <td className="td-category">{item.category}</td>
+                            <td className="td-responsible">{item.responsible}</td>
+                            <td className="td-date">{item.dateChanged}</td>
+                            <td className="td-comment" title={item.comment}>
+                              {item.comment.length > 40
+                                ? item.comment.substring(0, 40) + '...'
+                                : item.comment}
+                            </td>
+                            <td className="td-number">{formatNumber(item.pzTotal)}</td>
+                            <td className="td-number">{formatNumber(item.pzLabor)}</td>
+                            <td className="td-number">{formatNumber(item.pzMaterial)}</td>
+                            <td className="td-number td-kp">{formatNumber(item.kp)}</td>
+                            <td className="td-number">{item.area > 0 ? formatNumber(item.area) : '-'}</td>
+                            <td className="td-number">{item.volume > 0 ? formatNumber(item.volume) : '-'}</td>
+                            <td className="td-number">{item.vsRatio > 0 ? item.vsRatio.toFixed(3) : '-'}</td>
+                            <td className="td-concrete">{item.concreteGrade}</td>
+                            <td className="td-number">{item.rebarTonnage > 0 ? formatNumber(item.rebarTonnage) : '-'}</td>
+                            <td className="td-status">{getStatusBadge(item.status)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="totals-row">
+                          <td colSpan={4}><strong>ИТОГО по проекту:</strong></td>
+                          <td className="td-number"><strong>{formatNumber(totals.pzTotal)}</strong></td>
+                          <td className="td-number"><strong>{formatNumber(totals.pzLabor)}</strong></td>
+                          <td className="td-number"><strong>{formatNumber(totals.pzMaterial)}</strong></td>
+                          <td className="td-number td-kp"><strong>{formatNumber(totals.kp)}</strong></td>
+                          <td className="td-number"><strong>{formatNumber(totals.area)}</strong></td>
+                          <td className="td-number"><strong>{formatNumber(totals.volume)}</strong></td>
+                          <td className="td-number">-</td>
+                          <td className="td-number"><strong>{formatNumber(totals.concreteVolume)}</strong></td>
+                          <td className="td-number"><strong>{formatNumber(totals.rebarTonnage)}</strong></td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="legend-section">
+          <h4>Условные обозначения:</h4>
+          <div className="legend-items">
+            <div className="legend-item">
+              <strong>ПЗ</strong> - Прямые затраты (тыс. ₽)
+            </div>
+            <div className="legend-item">
+              <strong>КП</strong> - Коммерческое предложение (тыс. ₽)
+            </div>
+            <div className="legend-item">
+              <strong>S</strong> - Площадь (м²)
+            </div>
+            <div className="legend-item">
+              <strong>V</strong> - Объём (м³)
+            </div>
+            <div className="legend-item">
+              <strong>V/S</strong> - Отношение объёма к площади
+            </div>
+            <div className="legend-item">
+              <strong>Арм.</strong> - Арматура (тонн)
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderContent = () => {
@@ -87,16 +732,7 @@ function App() {
           </div>
         );
       case 'indicators':
-        return (
-          <div className="page-content">
-            <h1>Основные показатели</h1>
-            <p className="page-description">Ключевые индикаторы эффективности строительных работ</p>
-            <div className="placeholder-content">
-              <span className="placeholder-icon">📈</span>
-              <p>Раздел в разработке</p>
-            </div>
-          </div>
-        );
+        return renderIndicatorsPage();
       case 'checklist':
         return (
           <div className="page-content">
