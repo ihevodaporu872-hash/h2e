@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import './App.css';
 
 type Theme = 'light' | 'dark';
@@ -275,6 +276,42 @@ function parseExcelToProjectData(): Project[] {
 type SortField = 'category' | 'responsible' | 'dateChanged' | 'pzTotal' | 'pzLabor' | 'pzMaterial' | 'kp' | 'area' | 'volume' | 'vsRatio' | 'rebarTonnage';
 type SortDirection = 'asc' | 'desc';
 
+// Excel parsing types
+interface ExcelColumnMapping {
+  category?: string;
+  responsible?: string;
+  date?: string;
+  comment?: string;
+  pzTotal?: string;
+  pzLabor?: string;
+  pzMaterial?: string;
+  kp?: string;
+  area?: string;
+  volume?: string;
+  concreteGrade?: string;
+  concreteVolume?: string;
+  rebarTonnage?: string;
+  projectName?: string;
+}
+
+// Common BOQ column name patterns (Russian/English)
+const COLUMN_PATTERNS: Record<keyof ExcelColumnMapping, string[]> = {
+  category: ['вид работ', 'категория', 'наименование', 'раздел', 'работы', 'category', 'work type', 'description'],
+  responsible: ['ответственный', 'исполнитель', 'responsible', 'assignee'],
+  date: ['дата', 'date', 'изменено', 'updated'],
+  comment: ['комментарий', 'примечание', 'comment', 'note', 'remarks'],
+  pzTotal: ['пз итого', 'пз всего', 'прямые затраты', 'итого пз', 'total cost', 'пз'],
+  pzLabor: ['пз работа', 'пз раб', 'работа', 'labor', 'трудозатраты'],
+  pzMaterial: ['пз материал', 'пз мат', 'материал', 'material', 'материалы'],
+  kp: ['кп', 'коммерческое', 'commercial', 'цена', 'price'],
+  area: ['площадь', 'area', 'м2', 'm2', 's,'],
+  volume: ['объем', 'объём', 'volume', 'м3', 'm3', 'v,'],
+  concreteGrade: ['марка бетона', 'бетон', 'concrete', 'класс бетона', 'grade'],
+  concreteVolume: ['объем бетона', 'объём бетона', 'бетон м3', 'concrete volume'],
+  rebarTonnage: ['арматура', 'армирование', 'rebar', 'тонн', 'tonnage', 'арм'],
+  projectName: ['проект', 'объект', 'project', 'name', 'наименование проекта'],
+};
+
 function App() {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('theme');
@@ -295,6 +332,14 @@ function App() {
   // Checklist page state
   const [checklistProjects, setChecklistProjects] = useState<ChecklistProject[]>([]);
   const [checklistFilter, setChecklistFilter] = useState<string>('all');
+
+  // Excel upload state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<'idle' | 'parsing' | 'success' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [parsedPreview, setParsedPreview] = useState<Project | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -458,6 +503,425 @@ function App() {
       return items.filter(i => greyStatuses.includes(i.status));
     }
     return items;
+  };
+
+  // ==========================================
+  // EXCEL UPLOAD FUNCTIONS
+  // ==========================================
+
+  // Find column index by pattern matching
+  const findColumnIndex = (headers: string[], patterns: string[]): number => {
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i]?.toLowerCase().trim() || '';
+      for (const pattern of patterns) {
+        if (header.includes(pattern.toLowerCase())) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  };
+
+  // Parse numeric value from cell
+  const parseNumericValue = (value: unknown): number => {
+    if (value === null || value === undefined || value === '' || value === '-') return 0;
+    if (typeof value === 'number') return value;
+    const str = String(value).replace(/\s/g, '').replace(',', '.');
+    const num = parseFloat(str);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Detect category from description
+  const detectCategory = (description: string): string => {
+    const desc = description.toLowerCase();
+    const categoryMap: Record<string, string[]> = {
+      'Монолитные работы': ['монолит', 'бетон', 'опалубка', 'железобетон', 'жб', 'фундамент'],
+      'Кладочные работы': ['кладка', 'кирпич', 'газобетон', 'блок', 'перегородк'],
+      'Фасадные работы': ['фасад', 'навесн', 'облицов', 'нвф', 'штукатур'],
+      'Кровельные работы': ['кровл', 'крыш', 'мембран', 'водосток'],
+      'Отделочные работы': ['отдел', 'покраск', 'обои', 'плитк', 'потолок', 'пол'],
+      'Электромонтажные работы': ['электр', 'кабель', 'освещ', 'эм', 'щит'],
+      'Сантехнические работы': ['сантех', 'водопровод', 'канализ', 'трубопровод'],
+      'Вентиляция и кондиционирование': ['вентил', 'кондиц', 'овик', 'воздуховод'],
+      'Слаботочные системы': ['слаботоч', 'сигнализ', 'видеонаблюд', 'скс', 'домофон'],
+      'Лифтовое оборудование': ['лифт', 'подъемник', 'эскалатор'],
+      'Благоустройство': ['благоустр', 'озелен', 'асфальт', 'площадк', 'дорож'],
+      'Земляные работы': ['земл', 'котлован', 'выемк', 'грунт', 'обратн'],
+      'Свайные работы': ['свай', 'буронабив', 'шпунт', 'забивн'],
+    };
+
+    for (const [category, keywords] of Object.entries(categoryMap)) {
+      for (const keyword of keywords) {
+        if (desc.includes(keyword)) {
+          return category;
+        }
+      }
+    }
+    return 'Общестроительные работы';
+  };
+
+  // Parse Excel file
+  const parseExcelFile = useCallback(async (file: File): Promise<Project> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | null)[][];
+
+          if (jsonData.length < 2) {
+            throw new Error('Файл пуст или содержит менее 2 строк');
+          }
+
+          // Get headers from first row
+          const headers = jsonData[0].map(h => String(h || ''));
+
+          // Map columns
+          const colIndices: Record<string, number> = {};
+          for (const [key, patterns] of Object.entries(COLUMN_PATTERNS)) {
+            colIndices[key] = findColumnIndex(headers, patterns);
+          }
+
+          // Extract project name from filename or first cell
+          const projectName = file.name.replace(/\.(xlsx?|csv)$/i, '').replace(/[_-]/g, ' ');
+
+          // Parse rows into work items
+          const workItems: WorkItem[] = [];
+          const statuses: WorkItem['status'][] = ['pending', 'in_progress', 'completed', 'review'];
+
+          for (let i = 1; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            if (!row || row.length === 0) continue;
+
+            // Get category/description
+            const categoryIdx = colIndices.category !== -1 ? colIndices.category : 0;
+            const description = String(row[categoryIdx] || '').trim();
+            if (!description || description.length < 3) continue;
+
+            // Detect or use existing category
+            const category = detectCategory(description);
+
+            // Get numeric values
+            const pzTotal = colIndices.pzTotal !== -1 ? parseNumericValue(row[colIndices.pzTotal]) : 0;
+            const pzLabor = colIndices.pzLabor !== -1 ? parseNumericValue(row[colIndices.pzLabor]) : 0;
+            const pzMaterial = colIndices.pzMaterial !== -1 ? parseNumericValue(row[colIndices.pzMaterial]) : 0;
+            const kp = colIndices.kp !== -1 ? parseNumericValue(row[colIndices.kp]) : pzTotal * 1.1;
+            const area = colIndices.area !== -1 ? parseNumericValue(row[colIndices.area]) : 0;
+            const volume = colIndices.volume !== -1 ? parseNumericValue(row[colIndices.volume]) : 0;
+            const concreteVolume = colIndices.concreteVolume !== -1 ? parseNumericValue(row[colIndices.concreteVolume]) : 0;
+            const rebarTonnage = colIndices.rebarTonnage !== -1 ? parseNumericValue(row[colIndices.rebarTonnage]) : 0;
+
+            // Get string values
+            const responsible = colIndices.responsible !== -1 ? String(row[colIndices.responsible] || 'Не назначен') : 'Не назначен';
+            const comment = colIndices.comment !== -1 ? String(row[colIndices.comment] || description) : description;
+            const concreteGrade = colIndices.concreteGrade !== -1 ? String(row[colIndices.concreteGrade] || '-') : '-';
+
+            // Get or generate date
+            let dateChanged = new Date().toISOString().split('T')[0];
+            if (colIndices.date !== -1 && row[colIndices.date]) {
+              const dateVal = row[colIndices.date];
+              if (typeof dateVal === 'number') {
+                // Excel date serial number
+                const excelDate = XLSX.SSF.parse_date_code(dateVal);
+                dateChanged = `${excelDate.y}-${String(excelDate.m).padStart(2, '0')}-${String(excelDate.d).padStart(2, '0')}`;
+              } else {
+                dateChanged = String(dateVal);
+              }
+            }
+
+            // Calculate V/S ratio
+            const vsRatio = area > 0 ? volume / area : 0;
+
+            // Skip rows with no meaningful data
+            if (pzTotal === 0 && area === 0 && volume === 0 && concreteVolume === 0) continue;
+
+            workItems.push({
+              id: `imported-${i}`,
+              category,
+              responsible: responsible.trim() || 'Не назначен',
+              dateChanged,
+              comment: comment.length > 200 ? comment.substring(0, 200) + '...' : comment,
+              pzTotal: Math.round(pzTotal),
+              pzLabor: Math.round(pzLabor),
+              pzMaterial: Math.round(pzMaterial),
+              kp: Math.round(kp),
+              area: Math.round(area),
+              volume: Math.round(volume * 100) / 100,
+              vsRatio: Math.round(vsRatio * 1000) / 1000,
+              concreteGrade,
+              concreteVolume: Math.round(concreteVolume),
+              rebarTonnage: Math.round(rebarTonnage * 10) / 10,
+              status: statuses[Math.floor(Math.random() * statuses.length)],
+            });
+          }
+
+          if (workItems.length === 0) {
+            throw new Error('Не удалось извлечь данные из файла. Проверьте формат BOQ.');
+          }
+
+          // Calculate total area
+          const totalArea = workItems.reduce((sum, item) => sum + item.area, 0);
+
+          const project: Project = {
+            id: `imported-${Date.now()}`,
+            name: projectName,
+            code: `IMP-${Date.now().toString(36).toUpperCase()}`,
+            address: 'Импортировано из Excel',
+            totalArea: totalArea || 10000,
+            workItems,
+            expanded: true,
+          };
+
+          resolve(project);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      reader.onerror = () => reject(new Error('Ошибка чтения файла'));
+      reader.readAsBinaryString(file);
+    });
+  }, []);
+
+  // Handle file drop
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  }, []);
+
+  // Handle drag events
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  // Handle file input change
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+
+  // Main file upload handler
+  const handleFileUpload = async (file: File) => {
+    // Validate file type
+    const validExtensions = ['.xlsx', '.xls', '.csv'];
+    const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!validExtensions.includes(fileExt)) {
+      setUploadError('Поддерживаются только файлы Excel (.xlsx, .xls) и CSV');
+      setUploadProgress('error');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('Файл слишком большой. Максимальный размер: 10 МБ');
+      setUploadProgress('error');
+      return;
+    }
+
+    setUploadProgress('parsing');
+    setUploadError(null);
+    setParsedPreview(null);
+
+    try {
+      const project = await parseExcelFile(file);
+      setParsedPreview(project);
+      setUploadProgress('success');
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Ошибка парсинга файла');
+      setUploadProgress('error');
+    }
+  };
+
+  // Confirm import
+  const confirmImport = () => {
+    if (parsedPreview) {
+      setProjects(prev => [parsedPreview, ...prev]);
+      setShowUploadModal(false);
+      setUploadProgress('idle');
+      setParsedPreview(null);
+    }
+  };
+
+  // Reset upload modal
+  const resetUploadModal = () => {
+    setShowUploadModal(false);
+    setUploadProgress('idle');
+    setUploadError(null);
+    setParsedPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // ==========================================
+  // RENDER: UPLOAD MODAL
+  // ==========================================
+  const renderUploadModal = () => {
+    if (!showUploadModal) return null;
+
+    return (
+      <div className="modal-overlay" onClick={resetUploadModal}>
+        <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2>📥 Импорт BOQ из Excel</h2>
+            <button className="modal-close" onClick={resetUploadModal}>×</button>
+          </div>
+
+          <div className="modal-body">
+            {uploadProgress === 'idle' && (
+              <>
+                <div
+                  className={`upload-dropzone ${isDragging ? 'dragging' : ''}`}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="dropzone-icon">📄</div>
+                  <div className="dropzone-text">
+                    <p className="dropzone-title">Перетащите файл сюда</p>
+                    <p className="dropzone-subtitle">или нажмите для выбора</p>
+                  </div>
+                  <div className="dropzone-formats">
+                    Поддерживаемые форматы: .xlsx, .xls, .csv
+                  </div>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileInputChange}
+                  style={{ display: 'none' }}
+                />
+
+                <div className="upload-instructions">
+                  <h4>📋 Рекомендации по формату BOQ:</h4>
+                  <ul>
+                    <li>Первая строка должна содержать заголовки колонок</li>
+                    <li>Колонки: <strong>Вид работ, ПЗ Итого, Площадь, Объём, Бетон, Арматура</strong></li>
+                    <li>Числовые значения в колонках затрат, площади и объёма</li>
+                    <li>Система автоматически определит категории работ</li>
+                  </ul>
+                </div>
+              </>
+            )}
+
+            {uploadProgress === 'parsing' && (
+              <div className="upload-status parsing">
+                <div className="spinner"></div>
+                <p>Анализ файла...</p>
+              </div>
+            )}
+
+            {uploadProgress === 'error' && (
+              <div className="upload-status error">
+                <div className="status-icon">❌</div>
+                <p className="error-message">{uploadError}</p>
+                <button className="btn-secondary" onClick={() => setUploadProgress('idle')}>
+                  Попробовать снова
+                </button>
+              </div>
+            )}
+
+            {uploadProgress === 'success' && parsedPreview && (
+              <div className="upload-preview">
+                <div className="preview-header">
+                  <div className="status-icon success">✅</div>
+                  <div className="preview-info">
+                    <h3>{parsedPreview.name}</h3>
+                    <p>Код: {parsedPreview.code}</p>
+                  </div>
+                </div>
+
+                <div className="preview-stats">
+                  <div className="preview-stat">
+                    <span className="stat-value">{parsedPreview.workItems.length}</span>
+                    <span className="stat-label">Позиций</span>
+                  </div>
+                  <div className="preview-stat">
+                    <span className="stat-value">{formatNumber(parsedPreview.totalArea)}</span>
+                    <span className="stat-label">м² площадь</span>
+                  </div>
+                  <div className="preview-stat">
+                    <span className="stat-value">{formatCurrency(getProjectTotals(parsedPreview.workItems).pzTotal * 1000)}</span>
+                    <span className="stat-label">ПЗ Итого</span>
+                  </div>
+                </div>
+
+                <div className="preview-categories">
+                  <h4>Категории работ:</h4>
+                  <div className="category-tags">
+                    {[...new Set(parsedPreview.workItems.map(w => w.category))].map(cat => (
+                      <span key={cat} className="category-tag">
+                        {cat} ({parsedPreview.workItems.filter(w => w.category === cat).length})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="preview-table-container">
+                  <h4>Предварительный просмотр (первые 5 позиций):</h4>
+                  <table className="preview-table">
+                    <thead>
+                      <tr>
+                        <th>Категория</th>
+                        <th>ПЗ Итого</th>
+                        <th>Площадь</th>
+                        <th>Объём</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsedPreview.workItems.slice(0, 5).map(item => (
+                        <tr key={item.id}>
+                          <td>{item.category}</td>
+                          <td>{formatNumber(item.pzTotal)}</td>
+                          <td>{item.area > 0 ? formatNumber(item.area) : '-'}</td>
+                          <td>{item.volume > 0 ? formatNumber(item.volume) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {parsedPreview.workItems.length > 5 && (
+                    <p className="preview-more">...и ещё {parsedPreview.workItems.length - 5} позиций</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="modal-footer">
+            <button className="btn-secondary" onClick={resetUploadModal}>
+              Отмена
+            </button>
+            {uploadProgress === 'success' && parsedPreview && (
+              <button className="btn-primary" onClick={confirmImport}>
+                <span>✓</span> Импортировать данные
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // ==========================================
@@ -675,7 +1139,9 @@ function App() {
             <p className="page-description">Сводка по проектам и видам работ</p>
           </div>
           <div className="page-actions">
-            <button className="btn-secondary"><span>📥</span> Импорт Excel</button>
+            <button className="btn-secondary" onClick={() => setShowUploadModal(true)}>
+              <span>📥</span> Импорт Excel
+            </button>
             <button className="btn-primary"><span>📤</span> Экспорт</button>
           </div>
         </div>
@@ -919,6 +1385,9 @@ function App() {
           {renderContent()}
         </main>
       </div>
+
+      {/* Upload Modal */}
+      {renderUploadModal()}
     </div>
   );
 }
