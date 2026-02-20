@@ -1145,8 +1145,8 @@ function App() {
             <p className="page-description">Сводка по проектам и видам работ</p>
           </div>
           <div className="page-actions">
-            <button className="btn-secondary" onClick={() => { console.log('Upload clicked'); setShowUploadModal(true); }}>
-              <span>📥</span> Загрузить BOQ
+            <button className="btn-secondary" onClick={() => { alert('Открываю модал загрузки!'); setShowUploadModal(true); }}>
+              <span>📥</span> Загрузить BOQ (v2)
             </button>
             <button className="btn-primary"><span>📤</span> Экспорт</button>
           </div>
