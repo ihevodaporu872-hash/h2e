@@ -889,7 +889,10 @@ function App() {
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    console.log('Dropzone clicked');
+                    fileInputRef.current?.click();
+                  }}
                 >
                   <div className="dropzone-icon">📄</div>
                   <div className="dropzone-text">
@@ -907,6 +910,16 @@ function App() {
                   onChange={handleFileInputChange}
                   style={{ display: 'none' }}
                 />
+                <button
+                  className="btn-primary"
+                  style={{ marginTop: '1rem', width: '100%' }}
+                  onClick={() => {
+                    console.log('Browse button clicked');
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  📂 Выбрать файл
+                </button>
 
                 <div className="upload-instructions">
                   <h4>📋 Рекомендации по формату BOQ:</h4>
