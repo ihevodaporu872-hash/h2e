@@ -574,27 +574,52 @@ function App() {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | null)[][];
 
+          console.log('=== BOQ PARSER DEBUG ===');
+          console.log('Sheet name:', sheetName);
+          console.log('Total rows:', jsonData.length);
+          console.log('First 5 rows:', jsonData.slice(0, 5));
+
           if (jsonData.length < 2) {
             throw new Error('Файл пуст или содержит менее 2 строк');
           }
 
-          // Get headers from first row
-          const headers = jsonData[0].map(h => String(h || ''));
+          // Try to find header row (might not be first row)
+          let headerRowIndex = 0;
+          for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+            const row = jsonData[i];
+            if (!row) continue;
+            const rowStr = row.map(c => String(c || '').toLowerCase()).join(' ');
+            // Look for common header keywords
+            if (rowStr.includes('наименование') || rowStr.includes('количество') ||
+                rowStr.includes('сумма') || rowStr.includes('цена') ||
+                rowStr.includes('стоимость') || rowStr.includes('работ')) {
+              headerRowIndex = i;
+              console.log('Found header row at index:', i);
+              break;
+            }
+          }
+
+          // Get headers from detected row
+          const headers = jsonData[headerRowIndex].map(h => String(h || ''));
+          console.log('Headers detected:', headers);
 
           // Map columns
           const colIndices: Record<string, number> = {};
           for (const [key, patterns] of Object.entries(COLUMN_PATTERNS)) {
             colIndices[key] = findColumnIndex(headers, patterns);
           }
+          console.log('Column indices:', colIndices);
 
           // Extract project name from filename or first cell
           const projectName = file.name.replace(/\.(xlsx?|csv)$/i, '').replace(/[_-]/g, ' ');
 
-          // Parse rows into work items
+          // Parse rows into work items (start after header row)
           const workItems: WorkItem[] = [];
           const statuses: WorkItem['status'][] = ['pending', 'in_progress', 'completed', 'review'];
+          const startRow = headerRowIndex + 1;
+          console.log('Starting to parse data from row:', startRow);
 
-          for (let i = 1; i < jsonData.length; i++) {
+          for (let i = startRow; i < jsonData.length; i++) {
             const row = jsonData[i];
             if (!row || row.length === 0) continue;
 
@@ -637,8 +662,26 @@ function App() {
             // Calculate V/S ratio
             const vsRatio = area > 0 ? volume / area : 0;
 
-            // Skip rows with no meaningful data (must have at least pzTotal, kp, or area > 0)
-            if (pzTotal === 0 && kp === 0 && area === 0) continue;
+            // Debug first few rows
+            if (i < startRow + 5) {
+              console.log(`Row ${i}:`, {
+                description: description.substring(0, 50),
+                pzTotal,
+                kp,
+                area,
+                category
+              });
+            }
+
+            // Skip rows with no meaningful data - but be lenient
+            // Accept row if it has description AND (any numeric value > 0)
+            const hasAnyValue = pzTotal > 0 || kp > 0 || area > 0 || volume > 0;
+            if (!hasAnyValue) {
+              if (i < startRow + 5) {
+                console.log(`  -> Skipped (no values)`);
+              }
+              continue;
+            }
 
             workItems.push({
               id: `imported-${i}`,
@@ -662,10 +705,27 @@ function App() {
 
           if (workItems.length === 0) {
             // Log debug info
+            console.log('=== PARSE FAILED ===');
             console.log('Headers found:', headers);
             console.log('Column indices:', colIndices);
-            console.log('First data row:', jsonData[1]);
-            throw new Error('Не удалось извлечь данные из файла. Проверьте формат BOQ.');
+            console.log('First data rows:', jsonData.slice(startRow, startRow + 3));
+
+            // Build helpful error message
+            const foundCols = Object.entries(colIndices)
+              .filter(([, idx]) => idx !== -1)
+              .map(([key, idx]) => `${key}=${idx}`)
+              .join(', ');
+            const missingCols = Object.entries(colIndices)
+              .filter(([, idx]) => idx === -1)
+              .map(([key]) => key)
+              .join(', ');
+
+            throw new Error(
+              `Не удалось извлечь данные. ` +
+              `Найдено колонок: ${foundCols || 'нет'}. ` +
+              `Не найдено: ${missingCols}. ` +
+              `Проверьте консоль браузера (F12) для деталей.`
+            );
           }
 
           // Calculate total area (use area sum, or estimate from pzTotal if no area)
