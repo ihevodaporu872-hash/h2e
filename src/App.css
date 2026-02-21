@@ -1816,6 +1816,51 @@ body {
   margin-top: 0.25rem;
 }
 
+/* Target Project Selector */
+.target-project-selector {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-main);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.target-project-selector h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem;
+}
+
+.project-select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.project-select:hover {
+  border-color: var(--primary);
+}
+
+.project-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.selector-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--success);
+  font-weight: 500;
+}
+
 /* Category Tags */
 .preview-categories {
   margin-bottom: 1.5rem;
