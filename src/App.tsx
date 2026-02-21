@@ -339,6 +339,7 @@ function App() {
   const [uploadProgress, setUploadProgress] = useState<'idle' | 'parsing' | 'success' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [parsedPreview, setParsedPreview] = useState<Project | null>(null);
+  const [selectedTargetProject, setSelectedTargetProject] = useState<string>('new'); // 'new' or project id
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -761,10 +762,31 @@ function App() {
   // Confirm import
   const confirmImport = () => {
     if (parsedPreview) {
-      setProjects(prev => [parsedPreview, ...prev]);
+      if (selectedTargetProject === 'new') {
+        // Create new project
+        setProjects(prev => [parsedPreview, ...prev]);
+      } else {
+        // Add items to existing project
+        setProjects(prev => prev.map(project => {
+          if (project.id === selectedTargetProject) {
+            // Merge work items, generating new IDs to avoid conflicts
+            const newWorkItems = parsedPreview.workItems.map((item, idx) => ({
+              ...item,
+              id: `${project.id}-imported-${Date.now()}-${idx}`,
+            }));
+            return {
+              ...project,
+              workItems: [...project.workItems, ...newWorkItems],
+              totalArea: project.totalArea + parsedPreview.totalArea,
+            };
+          }
+          return project;
+        }));
+      }
       setShowUploadModal(false);
       setUploadProgress('idle');
       setParsedPreview(null);
+      setSelectedTargetProject('new');
     }
   };
 
@@ -774,6 +796,7 @@ function App() {
     setUploadProgress('idle');
     setUploadError(null);
     setParsedPreview(null);
+    setSelectedTargetProject('new');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -872,6 +895,28 @@ function App() {
                     <span className="stat-value">{formatCurrency(getProjectTotals(parsedPreview.workItems).pzTotal * 1000)}</span>
                     <span className="stat-label">ПЗ Итого</span>
                   </div>
+                </div>
+
+                {/* Project/Tender selector */}
+                <div className="target-project-selector">
+                  <h4>📁 Привязать к тендеру:</h4>
+                  <select
+                    className="project-select"
+                    value={selectedTargetProject}
+                    onChange={(e) => setSelectedTargetProject(e.target.value)}
+                  >
+                    <option value="new">➕ Создать новый проект</option>
+                    {projects.map(project => (
+                      <option key={project.id} value={project.id}>
+                        {project.name} ({project.code})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTargetProject !== 'new' && (
+                    <p className="selector-hint">
+                      Данные будут добавлены к существующему проекту "{projects.find(p => p.id === selectedTargetProject)?.name}"
+                    </p>
+                  )}
                 </div>
 
                 <div className="preview-categories">
