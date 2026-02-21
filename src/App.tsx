@@ -871,8 +871,10 @@ function App() {
   // RENDER: UPLOAD MODAL
   // ==========================================
   const renderUploadModal = () => {
+    console.log('renderUploadModal called, showUploadModal:', showUploadModal);
     if (!showUploadModal) return null;
 
+    console.log('Rendering upload modal');
     return (
       <div className="modal-overlay" onClick={resetUploadModal}>
         <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
@@ -1268,7 +1270,10 @@ function App() {
             <p className="page-description">Сводка по проектам и видам работ</p>
           </div>
           <div className="page-actions">
-            <button className="btn-secondary" onClick={() => setShowUploadModal(true)}>
+            <button className="btn-secondary" onClick={() => {
+              console.log('Импорт Excel button clicked');
+              setShowUploadModal(true);
+            }}>
               <span>📥</span> Импорт Excel
             </button>
             <button className="btn-primary"><span>📤</span> Экспорт</button>
