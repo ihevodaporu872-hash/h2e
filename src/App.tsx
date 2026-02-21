@@ -297,19 +297,19 @@ interface ExcelColumnMapping {
 // Common BOQ column name patterns (Russian/English)
 const COLUMN_PATTERNS: Record<keyof ExcelColumnMapping, string[]> = {
   category: ['вид работ', 'категория', 'наименование', 'раздел', 'работы', 'category', 'work type', 'description'],
-  responsible: ['ответственный', 'исполнитель', 'responsible', 'assignee'],
+  responsible: ['ответственный', 'исполнитель', 'responsible', 'assignee', 'тип элемент'],
   date: ['дата', 'date', 'изменено', 'updated'],
-  comment: ['комментарий', 'примечание', 'comment', 'note', 'remarks'],
-  pzTotal: ['пз итого', 'пз всего', 'прямые затраты', 'итого пз', 'total cost', 'пз'],
-  pzLabor: ['пз работа', 'пз раб', 'работа', 'labor', 'трудозатраты'],
+  comment: ['комментарий', 'примечание', 'comment', 'note', 'remarks', 'примечание заказчика', 'примечание гп'],
+  pzTotal: ['пз итого', 'пз всего', 'прямые затраты', 'итого пз', 'total cost', 'пз', 'итоговая сумма', 'итоговая сум', 'сумма'],
+  pzLabor: ['пз работа', 'пз раб', 'работа', 'labor', 'трудозатраты', 'стоимость доставки'],
   pzMaterial: ['пз материал', 'пз мат', 'материал', 'material', 'материалы'],
-  kp: ['кп', 'коммерческое', 'commercial', 'цена', 'price'],
-  area: ['площадь', 'area', 'м2', 'm2', 's,'],
+  kp: ['кп', 'коммерческое', 'commercial', 'цена', 'price', 'цена за единицу', 'цена за ед'],
+  area: ['площадь', 'area', 'м2', 'm2', 's,', 'количество заказчика', 'количество гп', 'количество'],
   volume: ['объем', 'объём', 'volume', 'м3', 'm3', 'v,'],
-  concreteGrade: ['марка бетона', 'бетон', 'concrete', 'класс бетона', 'grade'],
+  concreteGrade: ['марка бетона', 'бетон', 'concrete', 'класс бетона', 'grade', 'ед. изм', 'ед.изм', 'единица'],
   concreteVolume: ['объем бетона', 'объём бетона', 'бетон м3', 'concrete volume'],
   rebarTonnage: ['арматура', 'армирование', 'rebar', 'тонн', 'tonnage', 'арм'],
-  projectName: ['проект', 'объект', 'project', 'name', 'наименование проекта'],
+  projectName: ['проект', 'объект', 'project', 'name', 'наименование проекта', 'затрата на строительство'],
 };
 
 function App() {
@@ -637,8 +637,8 @@ function App() {
             // Calculate V/S ratio
             const vsRatio = area > 0 ? volume / area : 0;
 
-            // Skip rows with no meaningful data
-            if (pzTotal === 0 && area === 0 && volume === 0 && concreteVolume === 0) continue;
+            // Skip rows with no meaningful data (must have at least pzTotal, kp, or area > 0)
+            if (pzTotal === 0 && kp === 0 && area === 0) continue;
 
             workItems.push({
               id: `imported-${i}`,
@@ -661,18 +661,23 @@ function App() {
           }
 
           if (workItems.length === 0) {
+            // Log debug info
+            console.log('Headers found:', headers);
+            console.log('Column indices:', colIndices);
+            console.log('First data row:', jsonData[1]);
             throw new Error('Не удалось извлечь данные из файла. Проверьте формат BOQ.');
           }
 
-          // Calculate total area
+          // Calculate total area (use area sum, or estimate from pzTotal if no area)
           const totalArea = workItems.reduce((sum, item) => sum + item.area, 0);
+          const totalPz = workItems.reduce((sum, item) => sum + item.pzTotal, 0);
 
           const project: Project = {
             id: `imported-${Date.now()}`,
             name: projectName,
             code: `IMP-${Date.now().toString(36).toUpperCase()}`,
             address: 'Импортировано из Excel',
-            totalArea: totalArea || 10000,
+            totalArea: totalArea || Math.round(totalPz / 10) || 10000, // Estimate from total cost if no area
             workItems,
             expanded: true,
           };
