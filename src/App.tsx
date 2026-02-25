@@ -296,20 +296,28 @@ interface ExcelColumnMapping {
 
 // Common BOQ column name patterns (Russian/English)
 const COLUMN_PATTERNS: Record<keyof ExcelColumnMapping, string[]> = {
-  category: ['вид работ', 'категория', 'наименование', 'раздел', 'работы', 'category', 'work type', 'description', 'название', 'позиция', 'item', 'name', 'услуга', 'товар', 'продукт', 'work', 'type'],
-  responsible: ['ответственный', 'исполнитель', 'responsible', 'assignee', 'тип элемент', 'подрядчик', 'contractor'],
+  // Column A: Work item name
+  category: ['затрата тендера', 'затрата', 'вид работ', 'категория', 'наименование', 'раздел', 'работы', 'category', 'work type', 'description', 'название', 'позиция', 'item', 'name'],
+  responsible: ['ответственный', 'исполнитель', 'responsible', 'assignee', 'подрядчик', 'contractor'],
   date: ['дата', 'date', 'изменено', 'updated', 'срок'],
-  comment: ['комментарий', 'примечание', 'comment', 'note', 'remarks', 'примечание заказчика', 'примечание гп', 'описание', 'details'],
-  pzTotal: ['пз итого', 'пз всего', 'прямые затраты', 'итого пз', 'total cost', 'пз', 'итоговая сумма', 'итоговая сум', 'сумма', 'итого', 'total', 'всего', 'стоимость', 'cost', 'amount', 'value'],
-  pzLabor: ['пз работа', 'пз раб', 'работа', 'labor', 'трудозатраты', 'стоимость доставки', 'монтаж', 'услуги'],
-  pzMaterial: ['пз материал', 'пз мат', 'материал', 'material', 'материалы', 'расходники'],
-  kp: ['кп', 'коммерческое', 'commercial', 'цена', 'price', 'цена за единицу', 'цена за ед', 'ед.цена', 'unit price', 'rate'],
-  area: ['площадь', 'area', 'м2', 'm2', 's,', 'количество заказчика', 'количество гп', 'количество', 'кол-во', 'qty', 'quantity', 'шт', 'единиц', 'count'],
-  volume: ['объем', 'объём', 'volume', 'м3', 'm3', 'v,'],
-  concreteGrade: ['марка бетона', 'бетон', 'concrete', 'класс бетона', 'grade', 'ед. изм', 'ед.изм', 'единица', 'ед', 'unit'],
+  comment: ['комментарий', 'примечание', 'comment', 'note', 'remarks', 'описание', 'details'],
+  // Column F: Прямые затраты - Итого за единицу
+  pzTotal: ['итого за единицу', 'прямые затраты', 'пз итого', 'итого пз', 'total cost', 'итоговая сумма', 'сумма', 'итого', 'total', 'стоимость'],
+  // Column D: Прямые затраты - Итого работ
+  pzLabor: ['итого работ', 'работ за ед', 'пз работа', 'labor', 'трудозатраты', 'монтаж'],
+  // Column E: Прямые затраты - Итого материалы
+  pzMaterial: ['итого материал', 'материалы за', 'пз материал', 'материал', 'material', 'материалы'],
+  // Column I: Коммерческие затраты - Итого за единицу
+  kp: ['коммерческ', 'кп', 'commercial', 'цена', 'price'],
+  // Column B: Объем or quantity
+  area: ['объем', 'объём', 'volume', 'количество', 'кол-во', 'qty', 'quantity', 'площадь', 'area'],
+  volume: ['объем', 'объём', 'volume', 'м3', 'm3'],
+  // Column C: Ед. изм.
+  concreteGrade: ['ед. изм', 'ед.изм', 'единица', 'ед', 'unit', 'марка'],
   concreteVolume: ['объем бетона', 'объём бетона', 'бетон м3', 'concrete volume'],
   rebarTonnage: ['арматура', 'армирование', 'rebar', 'тонн', 'tonnage', 'арм'],
-  projectName: ['проект', 'объект', 'project', 'name', 'наименование проекта', 'затрата на строительство'],
+  // Column J: Итого за единицу общей площади
+  projectName: ['итого за единицу общей площади', 'общей площади', 'за единицу общей', 'проект', 'объект', 'project'],
 };
 
 function App() {
@@ -596,9 +604,10 @@ function App() {
 
           // Try to find header row (might not be first row)
           let headerRowIndex = 0;
-          const headerKeywords = ['наименование', 'количество', 'сумма', 'цена', 'стоимость', 'работ',
-            'название', 'итого', 'total', 'name', 'description', 'item', 'qty', 'unit', 'amount',
-            'категория', 'позиция', 'ед.', 'кол-во', 'price', 'cost', 'value'];
+          const headerKeywords = ['затрата', 'объем', 'ед. изм', 'ед.изм', 'прямые', 'коммерческ', 'итого',
+            'наименование', 'количество', 'сумма', 'цена', 'стоимость', 'работ', 'материал',
+            'название', 'total', 'name', 'description', 'item', 'qty', 'unit', 'amount',
+            'категория', 'позиция', 'кол-во', 'price', 'cost', 'value'];
 
           for (let i = 0; i < Math.min(15, jsonData.length); i++) {
             const row = jsonData[i];
