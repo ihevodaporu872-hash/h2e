@@ -946,6 +946,8 @@ function App() {
     }
 
     resetUploadModal();
+    // Navigate to Indicators page to show the imported data
+    setActiveNav('indicators');
   };
 
   // Reset upload modal
