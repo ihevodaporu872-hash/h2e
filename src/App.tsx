@@ -596,133 +596,168 @@ function App() {
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | null)[][];
 
           console.log('JSON data rows:', jsonData.length);
-          console.log('First 3 rows:', jsonData.slice(0, 3));
+          console.log('First 5 rows:', jsonData.slice(0, 5));
 
           if (jsonData.length < 2) {
             throw new Error('Файл пуст или содержит менее 2 строк');
           }
 
-          // Try to find header row (might not be first row)
-          let headerRowIndex = 0;
-          const headerKeywords = ['затрата', 'объем', 'ед. изм', 'ед.изм', 'прямые', 'коммерческ', 'итого',
-            'наименование', 'количество', 'сумма', 'цена', 'стоимость', 'работ', 'материал',
-            'название', 'total', 'name', 'description', 'item', 'qty', 'unit', 'amount',
-            'категория', 'позиция', 'кол-во', 'price', 'cost', 'value'];
+          // Check if this is "Затрата тендера" format (Moscow tender format)
+          // Fixed column positions: A=name, B=volume, C=unit, D-F=Прямые, G-I=Коммерческие, J=Total/GBA
+          let isTenderFormat = false;
+          let dataStartRow = 0;
 
-          for (let i = 0; i < Math.min(15, jsonData.length); i++) {
+          for (let i = 0; i < Math.min(5, jsonData.length); i++) {
             const row = jsonData[i];
             if (!row) continue;
-            const rowStr = row.map(c => String(c || '').toLowerCase()).join(' ');
-            // Look for common header keywords
-            const matchCount = headerKeywords.filter(kw => rowStr.includes(kw)).length;
-            if (matchCount >= 2) {
-              headerRowIndex = i;
-              console.log('Header row detected at index:', i, 'matches:', matchCount);
+            const firstCell = String(row[0] || '').toLowerCase();
+            // Check for "затрата тендера" header or numbered items like "01."
+            if (firstCell.includes('затрата') || firstCell.includes('тендер')) {
+              isTenderFormat = true;
+              console.log('Detected tender format at row:', i);
+              continue;
+            }
+            // Find first data row (starts with "01." or similar pattern)
+            if (/^\d{2}\./.test(String(row[0] || ''))) {
+              dataStartRow = i;
+              isTenderFormat = true;
+              console.log('Data starts at row:', i);
               break;
             }
           }
 
-          // If no header found, try first row with multiple text columns
-          if (headerRowIndex === 0) {
-            for (let i = 0; i < Math.min(5, jsonData.length); i++) {
+          const workItems: WorkItem[] = [];
+          const projectName = file.name.replace(/\.(xlsx?|csv)$/i, '').replace(/[_-]/g, ' ');
+
+          if (isTenderFormat) {
+            // Use FIXED column positions for tender format
+            // A(0)=Затрата, B(1)=Объем, C(2)=Ед.изм, D(3)=ПЗ работ, E(4)=ПЗ матер, F(5)=ПЗ итого
+            // G(6)=КП работ, H(7)=КП матер, I(8)=КП итого, J(9)=Итого/GBA
+            console.log('Using tender format with fixed columns');
+
+            const colIndices: Record<string, number> = {
+              category: 0,      // A - Затрата тендера
+              area: 1,          // B - Объем
+              concreteGrade: 2, // C - Ед. изм.
+              pzLabor: 3,       // D - Итого работ (Прямые)
+              pzMaterial: 4,    // E - Итого материалы (Прямые)
+              pzTotal: 5,       // F - Итого за единицу (Прямые)
+              kp: 8,            // I - Итого за единицу (Коммерческие)
+              projectName: 9,   // J - Итого за единицу общей площади
+            };
+            setDetectedColumns(colIndices);
+
+            for (let i = dataStartRow; i < jsonData.length; i++) {
+              const row = jsonData[i];
+              if (!row || row.length === 0) continue;
+
+              const description = String(row[0] || '').trim();
+              if (!description || description.length < 3) continue;
+
+              // Skip header-like rows
+              if (description.toLowerCase().includes('затрата тендера')) continue;
+              if (description.toLowerCase().includes('прямые затраты')) continue;
+
+              // Detect category from description
+              const category = detectCategory(description);
+
+              // Get values from fixed positions
+              const volume = parseNumericValue(row[1]);
+              const unit = String(row[2] || '-');
+              const pzLabor = parseNumericValue(row[3]);
+              const pzMaterial = parseNumericValue(row[4]);
+              const pzTotal = parseNumericValue(row[5]);
+              const kpLabor = parseNumericValue(row[6]);
+              const kpMaterial = parseNumericValue(row[7]);
+              const kp = parseNumericValue(row[8]);
+              const totalGBA = parseNumericValue(row[9]);
+
+              // Skip rows with no data (but keep main section headers)
+              const isMainSection = /^\d{2}\.\s+[А-ЯЁA-Z]/.test(description);
+              const hasData = pzTotal > 0 || kp > 0 || totalGBA > 0;
+
+              if (!hasData && !isMainSection) continue;
+
+              workItems.push({
+                id: `imported-${i}`,
+                category,
+                responsible: 'Не назначен',
+                dateChanged: new Date().toISOString().split('T')[0],
+                comment: description,
+                pzTotal: Math.round(pzTotal),
+                pzLabor: Math.round(pzLabor),
+                pzMaterial: Math.round(pzMaterial),
+                kp: Math.round(kp || pzTotal * 1.1),
+                area: Math.round(volume) || 1,
+                volume: Math.round(volume * 100) / 100,
+                vsRatio: 0,
+                concreteGrade: unit,
+                concreteVolume: Math.round(totalGBA),
+                rebarTonnage: 0,
+                status: 'pending' as const,
+              });
+            }
+          } else {
+            // Fallback: Use pattern matching for other Excel formats
+            let headerRowIndex = 0;
+            const headerKeywords = ['затрата', 'объем', 'ед. изм', 'ед.изм', 'прямые', 'коммерческ', 'итого',
+              'наименование', 'количество', 'сумма', 'цена', 'стоимость', 'работ', 'материал'];
+
+            for (let i = 0; i < Math.min(15, jsonData.length); i++) {
               const row = jsonData[i];
               if (!row) continue;
-              const textCols = row.filter(c => typeof c === 'string' && c.length > 2).length;
-              if (textCols >= 3) {
+              const rowStr = row.map(c => String(c || '').toLowerCase()).join(' ');
+              const matchCount = headerKeywords.filter(kw => rowStr.includes(kw)).length;
+              if (matchCount >= 2) {
                 headerRowIndex = i;
-                console.log('Header row guessed at index:', i, 'text columns:', textCols);
                 break;
               }
             }
-          }
 
-          // Get headers from detected row
-          const headers = jsonData[headerRowIndex].map(h => String(h || ''));
-
-          // Map columns
-          const colIndices: Record<string, number> = {};
-          for (const [key, patterns] of Object.entries(COLUMN_PATTERNS)) {
-            colIndices[key] = findColumnIndex(headers, patterns);
-          }
-
-          // Store detected columns for UI display
-          console.log('Column indices found:', colIndices);
-          setDetectedColumns(colIndices);
-
-          // Extract project name from filename or first cell
-          const projectName = file.name.replace(/\.(xlsx?|csv)$/i, '').replace(/[_-]/g, ' ');
-
-          // Parse rows into work items (start after header row)
-          const workItems: WorkItem[] = [];
-          const startRow = headerRowIndex + 1;
-
-          for (let i = startRow; i < jsonData.length; i++) {
-            const row = jsonData[i];
-            if (!row || row.length === 0) continue;
-
-            // Get category/description
-            const categoryIdx = colIndices.category !== -1 ? colIndices.category : 0;
-            const description = String(row[categoryIdx] || '').trim();
-            if (!description || description.length < 3) continue;
-
-            // Detect or use existing category
-            const category = detectCategory(description);
-
-            // Get numeric values
-            const pzTotal = colIndices.pzTotal !== -1 ? parseNumericValue(row[colIndices.pzTotal]) : 0;
-            const pzLabor = colIndices.pzLabor !== -1 ? parseNumericValue(row[colIndices.pzLabor]) : 0;
-            const pzMaterial = colIndices.pzMaterial !== -1 ? parseNumericValue(row[colIndices.pzMaterial]) : 0;
-            const kp = colIndices.kp !== -1 ? parseNumericValue(row[colIndices.kp]) : pzTotal * 1.1;
-            const area = colIndices.area !== -1 ? parseNumericValue(row[colIndices.area]) : 0;
-            const volume = colIndices.volume !== -1 ? parseNumericValue(row[colIndices.volume]) : 0;
-            const concreteVolume = colIndices.concreteVolume !== -1 ? parseNumericValue(row[colIndices.concreteVolume]) : 0;
-            const rebarTonnage = colIndices.rebarTonnage !== -1 ? parseNumericValue(row[colIndices.rebarTonnage]) : 0;
-
-            // Get string values
-            const responsible = colIndices.responsible !== -1 ? String(row[colIndices.responsible] || 'Не назначен') : 'Не назначен';
-            const comment = colIndices.comment !== -1 ? String(row[colIndices.comment] || description) : description;
-            const concreteGrade = colIndices.concreteGrade !== -1 ? String(row[colIndices.concreteGrade] || '-') : '-';
-
-            // Get or generate date
-            let dateChanged = new Date().toISOString().split('T')[0];
-            if (colIndices.date !== -1 && row[colIndices.date]) {
-              const dateVal = row[colIndices.date];
-              if (typeof dateVal === 'number') {
-                // Excel date serial number
-                const excelDate = XLSX.SSF.parse_date_code(dateVal);
-                dateChanged = `${excelDate.y}-${String(excelDate.m).padStart(2, '0')}-${String(excelDate.d).padStart(2, '0')}`;
-              } else {
-                dateChanged = String(dateVal);
-              }
+            const headers = jsonData[headerRowIndex]?.map(h => String(h || '')) || [];
+            const colIndices: Record<string, number> = {};
+            for (const [key, patterns] of Object.entries(COLUMN_PATTERNS)) {
+              colIndices[key] = findColumnIndex(headers, patterns);
             }
+            setDetectedColumns(colIndices);
 
-            // Calculate V/S ratio
-            const vsRatio = area > 0 ? volume / area : 0;
+            const startRow = headerRowIndex + 1;
+            for (let i = startRow; i < jsonData.length; i++) {
+              const row = jsonData[i];
+              if (!row || row.length === 0) continue;
 
-            // Accept any row with a description - don't require numeric values
-            // If no numeric columns were detected, use placeholder values
-            const hasNumericColumns = colIndices.pzTotal !== -1 || colIndices.kp !== -1 || colIndices.area !== -1;
-            const finalPzTotal = pzTotal > 0 ? pzTotal : (hasNumericColumns ? 0 : 100000);
-            const finalKp = kp > 0 ? kp : finalPzTotal * 1.1;
+              const categoryIdx = colIndices.category !== -1 ? colIndices.category : 0;
+              const description = String(row[categoryIdx] || '').trim();
+              if (!description || description.length < 3) continue;
 
-            workItems.push({
-              id: `imported-${i}`,
-              category,
-              responsible: responsible.trim() || 'Не назначен',
-              dateChanged,
-              comment: comment.length > 200 ? comment.substring(0, 200) + '...' : comment,
-              pzTotal: Math.round(finalPzTotal),
-              pzLabor: Math.round(pzLabor),
-              pzMaterial: Math.round(pzMaterial),
-              kp: Math.round(finalKp),
-              area: Math.round(area) || 1,
-              volume: Math.round(volume * 100) / 100,
-              vsRatio: Math.round(vsRatio * 1000) / 1000,
-              concreteGrade,
-              concreteVolume: Math.round(concreteVolume),
-              rebarTonnage: Math.round(rebarTonnage * 10) / 10,
-              status: 'pending' as const,
-            });
+              const category = detectCategory(description);
+              const pzTotal = colIndices.pzTotal !== -1 ? parseNumericValue(row[colIndices.pzTotal]) : 0;
+              const pzLabor = colIndices.pzLabor !== -1 ? parseNumericValue(row[colIndices.pzLabor]) : 0;
+              const pzMaterial = colIndices.pzMaterial !== -1 ? parseNumericValue(row[colIndices.pzMaterial]) : 0;
+              const kp = colIndices.kp !== -1 ? parseNumericValue(row[colIndices.kp]) : pzTotal * 1.1;
+              const area = colIndices.area !== -1 ? parseNumericValue(row[colIndices.area]) : 0;
+
+              if (pzTotal === 0 && kp === 0 && area === 0) continue;
+
+              workItems.push({
+                id: `imported-${i}`,
+                category,
+                responsible: 'Не назначен',
+                dateChanged: new Date().toISOString().split('T')[0],
+                comment: description,
+                pzTotal: Math.round(pzTotal),
+                pzLabor: Math.round(pzLabor),
+                pzMaterial: Math.round(pzMaterial),
+                kp: Math.round(kp),
+                area: Math.round(area) || 1,
+                volume: 0,
+                vsRatio: 0,
+                concreteGrade: '-',
+                concreteVolume: 0,
+                rebarTonnage: 0,
+                status: 'pending' as const,
+              });
+            }
           }
 
           console.log('Work items parsed:', workItems.length);
