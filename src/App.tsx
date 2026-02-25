@@ -907,7 +907,9 @@ function App() {
   // RENDER: UPLOAD MODAL
   // ==========================================
   const renderUploadModal = () => {
+    console.log('renderUploadModal called, showUploadModal:', showUploadModal);
     if (!showUploadModal) return null;
+    console.log('Modal should render now!');
 
     const itemsToImport = getItemsToImport();
     const totalPz = itemsToImport.reduce((sum, item) => sum + item.pzTotal, 0);
@@ -1448,6 +1450,7 @@ function App() {
           </div>
           <div className="page-actions">
             <button className="btn-secondary" onClick={() => {
+              alert('Button clicked!');
               console.log('Импорт Excel button clicked');
               setShowUploadModal(true);
             }}>
