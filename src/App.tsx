@@ -70,6 +70,51 @@ interface Project {
 }
 
 // ==========================================
+// TENDER TABLE TYPES (Excel-like hierarchical)
+// ==========================================
+
+interface TenderRow {
+  id: string;
+  name: string;           // A: Затрата тендера
+  volume: number;         // B: Объем
+  unit: string;           // C: Ед. изм.
+  pzLabor: number;        // D: Прямые затраты - Итого работ за ед.
+  pzMaterial: number;     // E: Прямые затраты - Итого материалов за единицу
+  pzTotal: number;        // F: Прямые затраты - Итого за единицу
+  kzLabor: number;        // G: Коммерческие затраты - Итого работ за ед.
+  kzMaterial: number;     // H: Коммерческие затраты - Итого материалов за единицу
+  kzTotal: number;        // I: Коммерческие затраты - Итого за единицу
+  totalPerGBA: number;    // J: Итого за единицу общей площади
+  isSection: boolean;     // true for main sections (01., 02., etc.)
+  sectionId?: string;     // parent section id for sub-items
+}
+
+interface TenderSection {
+  id: string;
+  name: string;
+  rows: TenderRow[];
+  expanded: boolean;
+  // Aggregated totals
+  totals: {
+    pzLabor: number;
+    pzMaterial: number;
+    pzTotal: number;
+    kzLabor: number;
+    kzMaterial: number;
+    kzTotal: number;
+    totalPerGBA: number;
+  };
+}
+
+interface TenderProject {
+  id: string;
+  name: string;
+  code: string;
+  sections: TenderSection[];
+  expanded: boolean;
+}
+
+// ==========================================
 // CHECKLIST PAGE TYPES
 // ==========================================
 
@@ -272,10 +317,6 @@ function parseExcelToProjectData(): Project[] {
   return mockProjects;
 }
 
-// Sort types
-type SortField = 'category' | 'responsible' | 'dateChanged' | 'pzTotal' | 'pzLabor' | 'pzMaterial' | 'kp' | 'area' | 'volume' | 'vsRatio' | 'rebarTonnage';
-type SortDirection = 'asc' | 'desc';
-
 // Excel parsing types
 interface ExcelColumnMapping {
   category?: string;
@@ -332,10 +373,10 @@ function App() {
 
   // Indicators page state
   const [projects, setProjects] = useState<Project[]>([]);
-  const [sortField, setSortField] = useState<SortField>('category');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Tender projects state (hierarchical Excel data)
+  const [tenderProjects, setTenderProjects] = useState<TenderProject[]>([]);
 
   // Checklist page state
   const [checklistProjects, setChecklistProjects] = useState<ChecklistProject[]>([]);
@@ -386,79 +427,30 @@ function App() {
     setShowUserMenu(false);
   };
 
-  // Indicators page functions
-  const toggleProjectExpanded = (projectId: string) => {
-    setProjects(prev => prev.map(p =>
-      p.id === projectId ? { ...p, expanded: !p.expanded } : p
-    ));
+  // Tender project toggle functions
+  const toggleTenderProjectExpanded = (projectId: string) => {
+    setTenderProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, expanded: !p.expanded } : p))
+    );
   };
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const getFilteredSortedItems = (items: WorkItem[]): WorkItem[] => {
-    let filtered = items;
-    if (filterCategory !== 'all') {
-      filtered = filtered.filter(item => item.category === filterCategory);
-    }
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(item =>
-        item.category.toLowerCase().includes(query) ||
-        item.responsible.toLowerCase().includes(query) ||
-        item.comment.toLowerCase().includes(query)
-      );
-    }
-    return [...filtered].sort((a, b) => {
-      let aVal: string | number = a[sortField];
-      let bVal: string | number = b[sortField];
-      if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = (bVal as string).toLowerCase();
-      }
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
+  const toggleTenderSectionExpanded = (projectId: string, sectionId: string) => {
+    setTenderProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              sections: p.sections.map((s) =>
+                s.id === sectionId ? { ...s, expanded: !s.expanded } : s
+              ),
+            }
+          : p
+      )
+    );
   };
 
   const formatNumber = (num: number): string => num.toLocaleString('ru-RU');
   const formatCurrency = (num: number): string => num.toLocaleString('ru-RU') + ' ₽';
-
-  const getStatusBadge = (status: WorkItem['status']) => {
-    const statusMap = {
-      pending: { label: 'Ожидание', class: 'status-pending' },
-      in_progress: { label: 'В работе', class: 'status-progress' },
-      completed: { label: 'Завершено', class: 'status-completed' },
-      review: { label: 'На проверке', class: 'status-review' },
-    };
-    const { label, class: className } = statusMap[status];
-    return <span className={`status-badge ${className}`}>{label}</span>;
-  };
-
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return '↕';
-    return sortDirection === 'asc' ? '↑' : '↓';
-  };
-
-  const getProjectTotals = (items: WorkItem[]) => {
-    return items.reduce((acc, item) => ({
-      pzTotal: acc.pzTotal + item.pzTotal,
-      pzLabor: acc.pzLabor + item.pzLabor,
-      pzMaterial: acc.pzMaterial + item.pzMaterial,
-      kp: acc.kp + item.kp,
-      area: acc.area + item.area,
-      volume: acc.volume + item.volume,
-      concreteVolume: acc.concreteVolume + item.concreteVolume,
-      rebarTonnage: acc.rebarTonnage + item.rebarTonnage,
-    }), { pzTotal: 0, pzLabor: 0, pzMaterial: 0, kp: 0, area: 0, volume: 0, concreteVolume: 0, rebarTonnage: 0 });
-  };
 
   // Checklist page functions
   const toggleChecklistProjectExpanded = (projectId: string) => {
@@ -629,13 +621,16 @@ function App() {
           const workItems: WorkItem[] = [];
           const projectName = file.name.replace(/\.(xlsx?|csv)$/i, '').replace(/[_-]/g, ' ');
 
+          // Initialize colIndices at outer scope so it's available for error messages
+          let colIndices: Record<string, number> = {};
+
           if (isTenderFormat) {
             // Use FIXED column positions for tender format
             // A(0)=Затрата, B(1)=Объем, C(2)=Ед.изм, D(3)=ПЗ работ, E(4)=ПЗ матер, F(5)=ПЗ итого
             // G(6)=КП работ, H(7)=КП матер, I(8)=КП итого, J(9)=Итого/GBA
             console.log('Using tender format with fixed columns');
 
-            const colIndices: Record<string, number> = {
+            colIndices = {
               category: 0,      // A - Затрата тендера
               area: 1,          // B - Объем
               concreteGrade: 2, // C - Ед. изм.
@@ -667,8 +662,9 @@ function App() {
               const pzLabor = parseNumericValue(row[3]);
               const pzMaterial = parseNumericValue(row[4]);
               const pzTotal = parseNumericValue(row[5]);
-              const kpLabor = parseNumericValue(row[6]);
-              const kpMaterial = parseNumericValue(row[7]);
+              // KP labor and material are in columns 6-7 but we only use the total (column 8)
+              parseNumericValue(row[6]); // kpLabor - available but not stored
+              parseNumericValue(row[7]); // kpMaterial - available but not stored
               const kp = parseNumericValue(row[8]);
               const totalGBA = parseNumericValue(row[9]);
 
@@ -715,7 +711,7 @@ function App() {
             }
 
             const headers = jsonData[headerRowIndex]?.map(h => String(h || '')) || [];
-            const colIndices: Record<string, number> = {};
+            colIndices = {};
             for (const [key, patterns] of Object.entries(COLUMN_PATTERNS)) {
               colIndices[key] = findColumnIndex(headers, patterns);
             }
@@ -814,6 +810,157 @@ function App() {
     });
   }, []);
 
+  // Parse Excel file to hierarchical TenderProject format
+  const parseExcelToTenderProject = useCallback(async (file: File): Promise<TenderProject> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | null)[][];
+
+          if (jsonData.length < 2) {
+            throw new Error('Файл пуст или содержит менее 2 строк');
+          }
+
+          // Find data start row (skip headers)
+          let dataStartRow = 0;
+          for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+            const row = jsonData[i];
+            if (!row) continue;
+            const firstCell = String(row[0] || '').trim();
+            // Find first data row (starts with "01." or similar pattern)
+            if (/^\d{2}\./.test(firstCell)) {
+              dataStartRow = i;
+              break;
+            }
+          }
+
+          const projectName = file.name.replace(/\.(xlsx?|csv)$/i, '').replace(/[_-]/g, ' ');
+          const sections: TenderSection[] = [];
+          let currentSection: TenderSection | null = null;
+
+          // Fixed column positions for Moscow tender format
+          // A(0)=Name, B(1)=Volume, C(2)=Unit, D(3)=PZ Labor, E(4)=PZ Material, F(5)=PZ Total
+          // G(6)=KZ Labor, H(7)=KZ Material, I(8)=KZ Total, J(9)=Total/GBA
+
+          for (let i = dataStartRow; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            if (!row || row.length === 0) continue;
+
+            const name = String(row[0] || '').trim();
+            if (!name || name.length < 2) continue;
+
+            // Skip header rows
+            if (name.toLowerCase().includes('затрата тендера')) continue;
+            if (name.toLowerCase().includes('прямые затраты')) continue;
+            if (name.toLowerCase().includes('коммерческие затраты')) continue;
+
+            const volume = parseNumericValue(row[1]);
+            const unit = String(row[2] || '');
+            const pzLabor = parseNumericValue(row[3]);
+            const pzMaterial = parseNumericValue(row[4]);
+            const pzTotal = parseNumericValue(row[5]);
+            const kzLabor = parseNumericValue(row[6]);
+            const kzMaterial = parseNumericValue(row[7]);
+            const kzTotal = parseNumericValue(row[8]);
+            const totalPerGBA = parseNumericValue(row[9]);
+
+            // Check if this is a main section (XX. NAME) or sub-item (XX.XX. NAME)
+            const isSectionHeader = /^\d{2}\.\s+[А-ЯЁA-Z]/.test(name) && !/^\d{2}\.\d{2}\./.test(name);
+
+            const tenderRow: TenderRow = {
+              id: `row-${i}`,
+              name,
+              volume,
+              unit,
+              pzLabor,
+              pzMaterial,
+              pzTotal,
+              kzLabor,
+              kzMaterial,
+              kzTotal,
+              totalPerGBA,
+              isSection: isSectionHeader,
+              sectionId: currentSection?.id,
+            };
+
+            if (isSectionHeader) {
+              // Save previous section if exists
+              if (currentSection && currentSection.rows.length > 0) {
+                sections.push(currentSection);
+              }
+
+              // Start new section
+              currentSection = {
+                id: `section-${i}`,
+                name,
+                rows: [tenderRow],
+                expanded: true,
+                totals: {
+                  pzLabor,
+                  pzMaterial,
+                  pzTotal,
+                  kzLabor,
+                  kzMaterial,
+                  kzTotal,
+                  totalPerGBA,
+                },
+              };
+            } else if (currentSection) {
+              // Add to current section
+              tenderRow.sectionId = currentSection.id;
+              currentSection.rows.push(tenderRow);
+            }
+          }
+
+          // Add last section
+          if (currentSection && currentSection.rows.length > 0) {
+            sections.push(currentSection);
+          }
+
+          // Calculate totals for each section (sum of sub-items, excluding section header)
+          sections.forEach((section) => {
+            const subItems = section.rows.filter((r) => !r.isSection);
+            if (subItems.length > 0) {
+              section.totals = subItems.reduce(
+                (acc, row) => ({
+                  pzLabor: acc.pzLabor + row.pzLabor,
+                  pzMaterial: acc.pzMaterial + row.pzMaterial,
+                  pzTotal: acc.pzTotal + row.pzTotal,
+                  kzLabor: acc.kzLabor + row.kzLabor,
+                  kzMaterial: acc.kzMaterial + row.kzMaterial,
+                  kzTotal: acc.kzTotal + row.kzTotal,
+                  totalPerGBA: acc.totalPerGBA + row.totalPerGBA,
+                }),
+                { pzLabor: 0, pzMaterial: 0, pzTotal: 0, kzLabor: 0, kzMaterial: 0, kzTotal: 0, totalPerGBA: 0 }
+              );
+            }
+          });
+
+          const tenderProject: TenderProject = {
+            id: `tender-${Date.now()}`,
+            name: projectName,
+            code: `IMP-${Date.now().toString(36).toUpperCase()}`,
+            sections,
+            expanded: true,
+          };
+
+          resolve(tenderProject);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      reader.onerror = () => reject(new Error('Ошибка чтения файла'));
+      reader.readAsBinaryString(file);
+    });
+  }, []);
+
   // Main file upload handler
   const handleFileUpload = useCallback(async (file: File) => {
     console.log('handleFileUpload called with:', file.name);
@@ -839,18 +986,33 @@ function App() {
     setParsedPreview(null);
 
     try {
-      const project = await parseExcelFile(file);
+      // Parse both formats
+      const [project, tenderProject] = await Promise.all([
+        parseExcelFile(file),
+        parseExcelToTenderProject(file),
+      ]);
+
       setParsedPreview(project);
       setEditableProjectName(project.name);
       setEditedWorkItems(project.workItems);
       setExcludedRowIds(new Set());
+
+      // Add tender project to state immediately (for Indicators page display)
+      if (tenderProject.sections.length > 0) {
+        setTenderProjects((prev) => [...prev, tenderProject]);
+      }
+
       setImportStep('preview');
       setUploadProgress('success');
+
+      // Auto-navigate to Indicators page after successful import
+      setActiveNav('indicators');
+      setShowUploadModal(false);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Ошибка парсинга файла');
       setUploadProgress('error');
     }
-  }, [parseExcelFile]);
+  }, [parseExcelFile, parseExcelToTenderProject]);
 
   // Handle file drop
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -1507,6 +1669,22 @@ function App() {
   // RENDER: INDICATORS PAGE
   // ==========================================
   const renderIndicatorsPage = () => {
+    // Calculate grand totals for tender projects
+    const getTenderProjectTotals = (project: TenderProject) => {
+      return project.sections.reduce(
+        (acc, section) => ({
+          pzLabor: acc.pzLabor + section.totals.pzLabor,
+          pzMaterial: acc.pzMaterial + section.totals.pzMaterial,
+          pzTotal: acc.pzTotal + section.totals.pzTotal,
+          kzLabor: acc.kzLabor + section.totals.kzLabor,
+          kzMaterial: acc.kzMaterial + section.totals.kzMaterial,
+          kzTotal: acc.kzTotal + section.totals.kzTotal,
+          totalPerGBA: acc.totalPerGBA + section.totals.totalPerGBA,
+        }),
+        { pzLabor: 0, pzMaterial: 0, pzTotal: 0, kzLabor: 0, kzMaterial: 0, kzTotal: 0, totalPerGBA: 0 }
+      );
+    };
+
     return (
       <div className="indicators-page">
         <div className="page-header">
@@ -1532,108 +1710,201 @@ function App() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <select className="filter-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-            <option value="all">Все категории</option>
-            {WORK_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
         </div>
 
-        <div className="projects-container">
-          {projects.map(project => {
-            const filteredItems = getFilteredSortedItems(project.workItems);
-            const totals = getProjectTotals(project.workItems);
-            if (filterCategory !== 'all' && filteredItems.length === 0) return null;
+        {/* Tender Projects Table (Excel-like format) */}
+        {tenderProjects.length > 0 && (
+          <div className="tender-projects-container">
+            {tenderProjects.map((project) => {
+              const projectTotals = getTenderProjectTotals(project);
 
-            return (
-              <div key={project.id} className="project-section">
-                <div className="project-header" onClick={() => toggleProjectExpanded(project.id)}>
-                  <div className="project-expand">{project.expanded ? '▼' : '▶'}</div>
-                  <div className="project-info">
-                    <h2>{project.name}</h2>
-                    <span className="project-code">{project.code}</span>
-                    <span className="project-address">{project.address}</span>
+              return (
+                <div key={project.id} className="tender-project-section">
+                  <div
+                    className="tender-project-header"
+                    onClick={() => toggleTenderProjectExpanded(project.id)}
+                  >
+                    <div className="project-expand">{project.expanded ? '▼' : '▶'}</div>
+                    <div className="project-info">
+                      <h2>{project.name}</h2>
+                      <span className="project-code">{project.code}</span>
+                    </div>
+                    <div className="project-stats">
+                      <div className="project-stat">
+                        <span className="stat-label">ПЗ Итого</span>
+                        <span className="stat-value">{formatNumber(Math.round(projectTotals.pzTotal))}</span>
+                      </div>
+                      <div className="project-stat highlight">
+                        <span className="stat-label">КЗ Итого</span>
+                        <span className="stat-value">{formatNumber(Math.round(projectTotals.kzTotal))}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="project-stats">
-                    <div className="project-stat"><span className="stat-label">Площадь</span><span className="stat-value">{formatNumber(project.totalArea)} м²</span></div>
-                    <div className="project-stat"><span className="stat-label">Бетон</span><span className="stat-value">{formatNumber(totals.concreteVolume)} м³</span></div>
-                    <div className="project-stat"><span className="stat-label">Арматура</span><span className="stat-value">{formatNumber(totals.rebarTonnage)} т</span></div>
-                    <div className="project-stat highlight"><span className="stat-label">ПЗ Итого</span><span className="stat-value">{formatCurrency(totals.pzTotal * 1000)}</span></div>
-                  </div>
-                </div>
 
-                {project.expanded && (
-                  <div className="work-items-table-container">
-                    <table className="work-items-table">
-                      <thead>
-                        <tr>
-                          <th className="th-category" onClick={() => handleSort('category')}>Вид работ {getSortIcon('category')}</th>
-                          <th className="th-responsible" onClick={() => handleSort('responsible')}>Ответственный {getSortIcon('responsible')}</th>
-                          <th className="th-date" onClick={() => handleSort('dateChanged')}>Дата {getSortIcon('dateChanged')}</th>
-                          <th className="th-comment">Комментарий</th>
-                          <th className="th-number" onClick={() => handleSort('pzTotal')}>ПЗ Итого {getSortIcon('pzTotal')}</th>
-                          <th className="th-number" onClick={() => handleSort('pzLabor')}>ПЗ Раб {getSortIcon('pzLabor')}</th>
-                          <th className="th-number" onClick={() => handleSort('pzMaterial')}>ПЗ Мат {getSortIcon('pzMaterial')}</th>
-                          <th className="th-number" onClick={() => handleSort('kp')}>КП {getSortIcon('kp')}</th>
-                          <th className="th-number" onClick={() => handleSort('area')}>S, м² {getSortIcon('area')}</th>
-                          <th className="th-number" onClick={() => handleSort('volume')}>V, м³ {getSortIcon('volume')}</th>
-                          <th className="th-number" onClick={() => handleSort('vsRatio')}>V/S {getSortIcon('vsRatio')}</th>
-                          <th className="th-concrete">Бетон</th>
-                          <th className="th-number" onClick={() => handleSort('rebarTonnage')}>Арм., т {getSortIcon('rebarTonnage')}</th>
-                          <th className="th-status">Статус</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredItems.map(item => (
-                          <tr key={item.id}>
-                            <td className="td-category">{item.category}</td>
-                            <td className="td-responsible">{item.responsible}</td>
-                            <td className="td-date">{item.dateChanged}</td>
-                            <td className="td-comment" title={item.comment}>{item.comment.length > 40 ? item.comment.substring(0, 40) + '...' : item.comment}</td>
-                            <td className="td-number">{formatNumber(item.pzTotal)}</td>
-                            <td className="td-number">{formatNumber(item.pzLabor)}</td>
-                            <td className="td-number">{formatNumber(item.pzMaterial)}</td>
-                            <td className="td-number td-kp">{formatNumber(item.kp)}</td>
-                            <td className="td-number">{item.area > 0 ? formatNumber(item.area) : '-'}</td>
-                            <td className="td-number">{item.volume > 0 ? formatNumber(item.volume) : '-'}</td>
-                            <td className="td-number">{item.vsRatio > 0 ? item.vsRatio.toFixed(3) : '-'}</td>
-                            <td className="td-concrete">{item.concreteGrade}</td>
-                            <td className="td-number">{item.rebarTonnage > 0 ? formatNumber(item.rebarTonnage) : '-'}</td>
-                            <td className="td-status">{getStatusBadge(item.status)}</td>
+                  {project.expanded && (
+                    <div className="tender-table-container">
+                      <table className="tender-table">
+                        <thead>
+                          <tr className="tender-header-row-1">
+                            <th rowSpan={2} className="th-name">Затрата тендера</th>
+                            <th rowSpan={2} className="th-volume">Объем</th>
+                            <th rowSpan={2} className="th-unit">Ед. изм.</th>
+                            <th colSpan={3} className="th-group th-pz">Прямые Затраты</th>
+                            <th colSpan={3} className="th-group th-kz">Коммерческие Затраты</th>
+                            <th rowSpan={2} className="th-gba">Итого за ед. общей площади</th>
                           </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="totals-row">
-                          <td colSpan={4}><strong>ИТОГО:</strong></td>
-                          <td className="td-number"><strong>{formatNumber(totals.pzTotal)}</strong></td>
-                          <td className="td-number"><strong>{formatNumber(totals.pzLabor)}</strong></td>
-                          <td className="td-number"><strong>{formatNumber(totals.pzMaterial)}</strong></td>
-                          <td className="td-number td-kp"><strong>{formatNumber(totals.kp)}</strong></td>
-                          <td className="td-number"><strong>{formatNumber(totals.area)}</strong></td>
-                          <td className="td-number"><strong>{formatNumber(totals.volume)}</strong></td>
-                          <td className="td-number">-</td>
-                          <td className="td-number"><strong>{formatNumber(totals.concreteVolume)}</strong></td>
-                          <td className="td-number"><strong>{formatNumber(totals.rebarTonnage)}</strong></td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                          <tr className="tender-header-row-2">
+                            <th className="th-sub th-pz">Итого работ за ед.</th>
+                            <th className="th-sub th-pz">Итого материалов за ед.</th>
+                            <th className="th-sub th-pz">Итого за единицу</th>
+                            <th className="th-sub th-kz">Итого работ за ед.</th>
+                            <th className="th-sub th-kz">Итого материалов за ед.</th>
+                            <th className="th-sub th-kz">Итого за единицу</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {project.sections.map((section) => (
+                            <>
+                              {/* Section Header Row (Green) */}
+                              <tr
+                                key={section.id}
+                                className="tender-section-row"
+                                onClick={() => toggleTenderSectionExpanded(project.id, section.id)}
+                              >
+                                <td className="td-name td-section">
+                                  <span className="section-expand">
+                                    {section.expanded ? '▼' : '▶'}
+                                  </span>
+                                  {section.name}
+                                </td>
+                                <td className="td-volume">
+                                  {section.rows[0]?.volume > 0
+                                    ? formatNumber(section.rows[0].volume)
+                                    : ''}
+                                </td>
+                                <td className="td-unit">{section.rows[0]?.unit || ''}</td>
+                                <td className="td-number td-pz">
+                                  {formatNumber(Math.round(section.totals.pzLabor))}
+                                </td>
+                                <td className="td-number td-pz">
+                                  {formatNumber(Math.round(section.totals.pzMaterial))}
+                                </td>
+                                <td className="td-number td-pz td-total">
+                                  {formatNumber(Math.round(section.totals.pzTotal))}
+                                </td>
+                                <td className="td-number td-kz">
+                                  {formatNumber(Math.round(section.totals.kzLabor))}
+                                </td>
+                                <td className="td-number td-kz">
+                                  {formatNumber(Math.round(section.totals.kzMaterial))}
+                                </td>
+                                <td className="td-number td-kz td-total">
+                                  {formatNumber(Math.round(section.totals.kzTotal))}
+                                </td>
+                                <td className="td-number td-gba">
+                                  {formatNumber(Math.round(section.totals.totalPerGBA))}
+                                </td>
+                              </tr>
+
+                              {/* Sub-items (shown when section is expanded) */}
+                              {section.expanded &&
+                                section.rows
+                                  .filter((row) => !row.isSection)
+                                  .map((row) => (
+                                    <tr key={row.id} className="tender-item-row">
+                                      <td className="td-name td-subitem">{row.name}</td>
+                                      <td className="td-volume">
+                                        {row.volume > 0 ? formatNumber(row.volume) : ''}
+                                      </td>
+                                      <td className="td-unit">{row.unit}</td>
+                                      <td className="td-number td-pz">
+                                        {row.pzLabor > 0 ? formatNumber(Math.round(row.pzLabor)) : ''}
+                                      </td>
+                                      <td className="td-number td-pz">
+                                        {row.pzMaterial > 0
+                                          ? formatNumber(Math.round(row.pzMaterial))
+                                          : ''}
+                                      </td>
+                                      <td className="td-number td-pz td-total">
+                                        {row.pzTotal > 0 ? formatNumber(Math.round(row.pzTotal)) : ''}
+                                      </td>
+                                      <td className="td-number td-kz">
+                                        {row.kzLabor > 0 ? formatNumber(Math.round(row.kzLabor)) : ''}
+                                      </td>
+                                      <td className="td-number td-kz">
+                                        {row.kzMaterial > 0
+                                          ? formatNumber(Math.round(row.kzMaterial))
+                                          : ''}
+                                      </td>
+                                      <td className="td-number td-kz td-total">
+                                        {row.kzTotal > 0 ? formatNumber(Math.round(row.kzTotal)) : ''}
+                                      </td>
+                                      <td className="td-number td-gba">
+                                        {row.totalPerGBA > 0
+                                          ? formatNumber(Math.round(row.totalPerGBA))
+                                          : ''}
+                                      </td>
+                                    </tr>
+                                  ))}
+                            </>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="tender-totals-row">
+                            <td colSpan={3}>
+                              <strong>ИТОГО:</strong>
+                            </td>
+                            <td className="td-number td-pz">
+                              <strong>{formatNumber(Math.round(projectTotals.pzLabor))}</strong>
+                            </td>
+                            <td className="td-number td-pz">
+                              <strong>{formatNumber(Math.round(projectTotals.pzMaterial))}</strong>
+                            </td>
+                            <td className="td-number td-pz td-total">
+                              <strong>{formatNumber(Math.round(projectTotals.pzTotal))}</strong>
+                            </td>
+                            <td className="td-number td-kz">
+                              <strong>{formatNumber(Math.round(projectTotals.kzLabor))}</strong>
+                            </td>
+                            <td className="td-number td-kz">
+                              <strong>{formatNumber(Math.round(projectTotals.kzMaterial))}</strong>
+                            </td>
+                            <td className="td-number td-kz td-total">
+                              <strong>{formatNumber(Math.round(projectTotals.kzTotal))}</strong>
+                            </td>
+                            <td className="td-number td-gba">
+                              <strong>{formatNumber(Math.round(projectTotals.totalPerGBA))}</strong>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Empty state when no tender projects */}
+        {tenderProjects.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-state-icon">📊</div>
+            <h3>Нет загруженных данных</h3>
+            <p>Импортируйте Excel файл для отображения показателей</p>
+            <button className="btn-primary" onClick={() => setShowUploadModal(true)}>
+              <span>📥</span> Импорт Excel
+            </button>
+          </div>
+        )}
 
         <div className="legend-section">
           <h4>Условные обозначения:</h4>
           <div className="legend-items">
-            <div className="legend-item"><strong>ПЗ</strong> - Прямые затраты (тыс. ₽)</div>
-            <div className="legend-item"><strong>КП</strong> - Коммерческое предложение (тыс. ₽)</div>
-            <div className="legend-item"><strong>S</strong> - Площадь (м²)</div>
-            <div className="legend-item"><strong>V</strong> - Объём (м³)</div>
-            <div className="legend-item"><strong>V/S</strong> - Отношение объёма к площади</div>
-            <div className="legend-item"><strong>Арм.</strong> - Арматура (тонн)</div>
+            <div className="legend-item"><strong>ПЗ</strong> - Прямые затраты</div>
+            <div className="legend-item"><strong>КЗ</strong> - Коммерческие затраты</div>
+            <div className="legend-item"><span className="legend-color legend-green"></span> Вид работы (раздел)</div>
+            <div className="legend-item"><span className="legend-color legend-white"></span> Подпозиция</div>
           </div>
         </div>
       </div>
