@@ -342,6 +342,15 @@ function App() {
   const [selectedTargetProject, setSelectedTargetProject] = useState<string>('new'); // 'new' or project id
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Enhanced import modal state
+  const [importStep, setImportStep] = useState<'upload' | 'configure' | 'preview'>('upload');
+  const [editableProjectName, setEditableProjectName] = useState<string>('');
+  const [detectedColumns, setDetectedColumns] = useState<Record<string, number>>({});
+  const [showAllPreviewRows, setShowAllPreviewRows] = useState(false);
+  const [excludedRowIds, setExcludedRowIds] = useState<Set<string>>(new Set());
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editedWorkItems, setEditedWorkItems] = useState<WorkItem[]>([]);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
@@ -574,11 +583,6 @@ function App() {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | null)[][];
 
-          console.log('=== BOQ PARSER DEBUG ===');
-          console.log('Sheet name:', sheetName);
-          console.log('Total rows:', jsonData.length);
-          console.log('First 5 rows:', jsonData.slice(0, 5));
-
           if (jsonData.length < 2) {
             throw new Error('Файл пуст или содержит менее 2 строк');
           }
@@ -594,30 +598,28 @@ function App() {
                 rowStr.includes('сумма') || rowStr.includes('цена') ||
                 rowStr.includes('стоимость') || rowStr.includes('работ')) {
               headerRowIndex = i;
-              console.log('Found header row at index:', i);
               break;
             }
           }
 
           // Get headers from detected row
           const headers = jsonData[headerRowIndex].map(h => String(h || ''));
-          console.log('Headers detected:', headers);
 
           // Map columns
           const colIndices: Record<string, number> = {};
           for (const [key, patterns] of Object.entries(COLUMN_PATTERNS)) {
             colIndices[key] = findColumnIndex(headers, patterns);
           }
-          console.log('Column indices:', colIndices);
+
+          // Store detected columns for UI display
+          setDetectedColumns(colIndices);
 
           // Extract project name from filename or first cell
           const projectName = file.name.replace(/\.(xlsx?|csv)$/i, '').replace(/[_-]/g, ' ');
 
           // Parse rows into work items (start after header row)
           const workItems: WorkItem[] = [];
-          const statuses: WorkItem['status'][] = ['pending', 'in_progress', 'completed', 'review'];
           const startRow = headerRowIndex + 1;
-          console.log('Starting to parse data from row:', startRow);
 
           for (let i = startRow; i < jsonData.length; i++) {
             const row = jsonData[i];
@@ -662,26 +664,9 @@ function App() {
             // Calculate V/S ratio
             const vsRatio = area > 0 ? volume / area : 0;
 
-            // Debug first few rows
-            if (i < startRow + 5) {
-              console.log(`Row ${i}:`, {
-                description: description.substring(0, 50),
-                pzTotal,
-                kp,
-                area,
-                category
-              });
-            }
-
-            // Skip rows with no meaningful data - but be lenient
-            // Accept row if it has description AND (any numeric value > 0)
+            // Skip rows with no meaningful data
             const hasAnyValue = pzTotal > 0 || kp > 0 || area > 0 || volume > 0;
-            if (!hasAnyValue) {
-              if (i < startRow + 5) {
-                console.log(`  -> Skipped (no values)`);
-              }
-              continue;
-            }
+            if (!hasAnyValue) continue;
 
             workItems.push({
               id: `imported-${i}`,
@@ -699,33 +684,35 @@ function App() {
               concreteGrade,
               concreteVolume: Math.round(concreteVolume),
               rebarTonnage: Math.round(rebarTonnage * 10) / 10,
-              status: statuses[Math.floor(Math.random() * statuses.length)],
+              status: 'pending' as const,
             });
           }
 
           if (workItems.length === 0) {
-            // Log debug info
-            console.log('=== PARSE FAILED ===');
-            console.log('Headers found:', headers);
-            console.log('Column indices:', colIndices);
-            console.log('First data rows:', jsonData.slice(startRow, startRow + 3));
-
-            // Build helpful error message
+            // Build helpful error message with detected columns info
+            const colNames: Record<string, string> = {
+              category: 'Наименование',
+              pzTotal: 'Сумма/ПЗ Итого',
+              area: 'Площадь/Количество',
+              volume: 'Объём',
+            };
             const foundCols = Object.entries(colIndices)
               .filter(([, idx]) => idx !== -1)
-              .map(([key, idx]) => `${key}=${idx}`)
-              .join(', ');
-            const missingCols = Object.entries(colIndices)
-              .filter(([, idx]) => idx === -1)
-              .map(([key]) => key)
-              .join(', ');
+              .map(([key]) => colNames[key] || key)
+              .filter(Boolean)
+              .slice(0, 5);
+            const missingRequired = ['category', 'pzTotal'].filter(key => colIndices[key] === -1);
 
-            throw new Error(
-              `Не удалось извлечь данные. ` +
-              `Найдено колонок: ${foundCols || 'нет'}. ` +
-              `Не найдено: ${missingCols}. ` +
-              `Проверьте консоль браузера (F12) для деталей.`
-            );
+            let errorMsg = 'Не удалось извлечь данные из файла.';
+            if (missingRequired.length > 0) {
+              errorMsg += ` Не найдены обязательные колонки: ${missingRequired.map(k => colNames[k]).join(', ')}.`;
+            }
+            if (foundCols.length > 0) {
+              errorMsg += ` Найдены колонки: ${foundCols.join(', ')}.`;
+            }
+            errorMsg += ' Убедитесь, что файл содержит заголовки колонок и данные.';
+
+            throw new Error(errorMsg);
           }
 
           // Calculate total area (use area sum, or estimate from pzTotal if no area)
@@ -779,11 +766,13 @@ function App() {
 
     try {
       const project = await parseExcelFile(file);
-      console.log('Parsed project:', project);
       setParsedPreview(project);
+      setEditableProjectName(project.name);
+      setEditedWorkItems(project.workItems);
+      setExcludedRowIds(new Set());
+      setImportStep('preview');
       setUploadProgress('success');
     } catch (error) {
-      console.error('Parse error:', error);
       setUploadError(error instanceof Error ? error.message : 'Ошибка парсинга файла');
       setUploadProgress('error');
     }
@@ -794,8 +783,6 @@ function App() {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    console.log('File dropped');
-
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       handleFileUpload(files[0]);
@@ -817,42 +804,72 @@ function App() {
 
   // Handle file input change
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('File input changed');
     const files = e.target.files;
     if (files && files.length > 0) {
       handleFileUpload(files[0]);
     }
   }, [handleFileUpload]);
 
+  // Update work item in editable list
+  const updateWorkItem = useCallback((id: string, updates: Partial<WorkItem>) => {
+    setEditedWorkItems(prev => prev.map(item =>
+      item.id === id ? { ...item, ...updates } : item
+    ));
+  }, []);
+
+  // Toggle row exclusion
+  const toggleRowExclusion = useCallback((id: string) => {
+    setExcludedRowIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Get items to import (excluding excluded rows)
+  const getItemsToImport = useCallback(() => {
+    return editedWorkItems.filter(item => !excludedRowIds.has(item.id));
+  }, [editedWorkItems, excludedRowIds]);
+
   // Confirm import
   const confirmImport = () => {
-    if (parsedPreview) {
-      if (selectedTargetProject === 'new') {
-        // Create new project
-        setProjects(prev => [parsedPreview, ...prev]);
-      } else {
-        // Add items to existing project
-        setProjects(prev => prev.map(project => {
-          if (project.id === selectedTargetProject) {
-            // Merge work items, generating new IDs to avoid conflicts
-            const newWorkItems = parsedPreview.workItems.map((item, idx) => ({
-              ...item,
-              id: `${project.id}-imported-${Date.now()}-${idx}`,
-            }));
-            return {
-              ...project,
-              workItems: [...project.workItems, ...newWorkItems],
-              totalArea: project.totalArea + parsedPreview.totalArea,
-            };
-          }
-          return project;
-        }));
-      }
-      setShowUploadModal(false);
-      setUploadProgress('idle');
-      setParsedPreview(null);
-      setSelectedTargetProject('new');
+    const itemsToImport = getItemsToImport();
+    if (itemsToImport.length === 0) return;
+
+    const projectToImport: Project = {
+      id: `imported-${Date.now()}`,
+      name: editableProjectName || parsedPreview?.name || 'Импортированный проект',
+      code: parsedPreview?.code || `IMP-${Date.now().toString(36).toUpperCase()}`,
+      address: parsedPreview?.address || 'Импортировано из Excel',
+      totalArea: itemsToImport.reduce((sum, item) => sum + item.area, 0) || 10000,
+      workItems: itemsToImport,
+      expanded: true,
+    };
+
+    if (selectedTargetProject === 'new') {
+      setProjects(prev => [projectToImport, ...prev]);
+    } else {
+      setProjects(prev => prev.map(project => {
+        if (project.id === selectedTargetProject) {
+          const newWorkItems = itemsToImport.map((item, idx) => ({
+            ...item,
+            id: `${project.id}-imported-${Date.now()}-${idx}`,
+          }));
+          return {
+            ...project,
+            workItems: [...project.workItems, ...newWorkItems],
+            totalArea: project.totalArea + projectToImport.totalArea,
+          };
+        }
+        return project;
+      }));
     }
+
+    resetUploadModal();
   };
 
   // Reset upload modal
@@ -862,6 +879,13 @@ function App() {
     setUploadError(null);
     setParsedPreview(null);
     setSelectedTargetProject('new');
+    setImportStep('upload');
+    setEditableProjectName('');
+    setEditedWorkItems([]);
+    setExcludedRowIds(new Set());
+    setShowAllPreviewRows(false);
+    setEditingRowId(null);
+    setDetectedColumns({});
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -871,80 +895,127 @@ function App() {
   // RENDER: UPLOAD MODAL
   // ==========================================
   const renderUploadModal = () => {
-    console.log('renderUploadModal called, showUploadModal:', showUploadModal);
     if (!showUploadModal) return null;
 
-    console.log('Rendering upload modal');
+    const itemsToImport = getItemsToImport();
+    const totalPz = itemsToImport.reduce((sum, item) => sum + item.pzTotal, 0);
+    const totalArea = itemsToImport.reduce((sum, item) => sum + item.area, 0);
+    const categories = [...new Set(editedWorkItems.map(w => w.category))];
+    const displayedItems = showAllPreviewRows ? editedWorkItems : editedWorkItems.slice(0, 10);
+
+    // Column name mapping for display
+    const columnLabels: Record<string, string> = {
+      category: 'Наименование',
+      pzTotal: 'Сумма',
+      pzLabor: 'Работа',
+      pzMaterial: 'Материал',
+      kp: 'Цена',
+      area: 'Количество',
+      volume: 'Объём',
+      responsible: 'Ответственный',
+      date: 'Дата',
+    };
+
     return (
       <div className="modal-overlay" onClick={resetUploadModal}>
-        <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="upload-modal upload-modal-large" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
-            <h2>📥 Импорт BOQ из Excel</h2>
+            <h2>Импорт BOQ из Excel</h2>
             <button className="modal-close" onClick={resetUploadModal}>×</button>
           </div>
 
-          <div className="modal-body">
-            {uploadProgress === 'idle' && (
-              <>
-                <div
-                  className={`upload-dropzone ${isDragging ? 'dragging' : ''}`}
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onClick={() => {
-                    console.log('Dropzone clicked');
-                    fileInputRef.current?.click();
-                  }}
-                >
-                  <div className="dropzone-icon">📄</div>
-                  <div className="dropzone-text">
-                    <p className="dropzone-title">Перетащите файл сюда</p>
-                    <p className="dropzone-subtitle">или нажмите для выбора</p>
-                  </div>
-                  <div className="dropzone-formats">
-                    Поддерживаемые форматы: .xlsx, .xls, .csv
-                  </div>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleFileInputChange}
-                  style={{ display: 'none' }}
-                />
-                <button
-                  className="btn-primary"
-                  style={{ marginTop: '1rem', width: '100%' }}
-                  onClick={() => {
-                    console.log('Browse button clicked');
-                    fileInputRef.current?.click();
-                  }}
-                >
-                  📂 Выбрать файл
-                </button>
+          {/* Step Indicator */}
+          <div className="import-steps">
+            <div className={`import-step ${importStep === 'upload' ? 'active' : uploadProgress === 'success' ? 'completed' : ''}`}>
+              <span className="step-number">1</span>
+              <span className="step-label">Загрузка</span>
+            </div>
+            <div className="step-connector" />
+            <div className={`import-step ${importStep === 'preview' ? 'active' : ''}`}>
+              <span className="step-number">2</span>
+              <span className="step-label">Настройка</span>
+            </div>
+            <div className="step-connector" />
+            <div className={`import-step ${importStep === 'preview' && itemsToImport.length > 0 ? 'ready' : ''}`}>
+              <span className="step-number">3</span>
+              <span className="step-label">Импорт</span>
+            </div>
+          </div>
 
-                <div className="upload-instructions">
-                  <h4>📋 Рекомендации по формату BOQ:</h4>
-                  <ul>
-                    <li>Первая строка должна содержать заголовки колонок</li>
-                    <li>Колонки: <strong>Вид работ, ПЗ Итого, Площадь, Объём, Бетон, Арматура</strong></li>
-                    <li>Числовые значения в колонках затрат, площади и объёма</li>
-                    <li>Система автоматически определит категории работ</li>
-                  </ul>
-                </div>
+          <div className="modal-body">
+            {/* STEP 1: Upload */}
+            {(uploadProgress === 'idle' || uploadProgress === 'parsing') && (
+              <>
+                {uploadProgress === 'idle' && (
+                  <>
+                    <div
+                      className={`upload-dropzone ${isDragging ? 'dragging' : ''}`}
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <div className="dropzone-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                      </div>
+                      <div className="dropzone-text">
+                        <p className="dropzone-title">Перетащите файл сюда</p>
+                        <p className="dropzone-subtitle">или нажмите для выбора</p>
+                      </div>
+                      <div className="dropzone-formats">
+                        Поддерживаемые форматы: .xlsx, .xls, .csv (до 10 МБ)
+                      </div>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleFileInputChange}
+                      style={{ display: 'none' }}
+                    />
+                    <button
+                      className="btn-primary"
+                      style={{ marginTop: '1rem', width: '100%' }}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Выбрать файл
+                    </button>
+
+                    <div className="upload-instructions">
+                      <h4>Рекомендации по формату:</h4>
+                      <ul>
+                        <li>Файл должен содержать заголовки колонок</li>
+                        <li>Поддерживаемые колонки: <strong>Наименование, Сумма, Количество, Цена</strong></li>
+                        <li>Система автоматически определит категории работ</li>
+                        <li>После загрузки можно отредактировать данные</li>
+                      </ul>
+                    </div>
+                  </>
+                )}
+
+                {uploadProgress === 'parsing' && (
+                  <div className="upload-status parsing">
+                    <div className="spinner"></div>
+                    <p>Анализ файла...</p>
+                  </div>
+                )}
               </>
             )}
 
-            {uploadProgress === 'parsing' && (
-              <div className="upload-status parsing">
-                <div className="spinner"></div>
-                <p>Анализ файла...</p>
-              </div>
-            )}
-
+            {/* Error State */}
             {uploadProgress === 'error' && (
               <div className="upload-status error">
-                <div className="status-icon">❌</div>
+                <div className="status-icon-large">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="15" y1="9" x2="9" y2="15" />
+                    <line x1="9" y1="9" x2="15" y2="15" />
+                  </svg>
+                </div>
                 <p className="error-message">{uploadError}</p>
                 <button className="btn-secondary" onClick={() => setUploadProgress('idle')}>
                   Попробовать снова
@@ -952,88 +1023,182 @@ function App() {
               </div>
             )}
 
+            {/* STEP 2: Preview & Configure */}
             {uploadProgress === 'success' && parsedPreview && (
               <div className="upload-preview">
-                <div className="preview-header">
-                  <div className="status-icon success">✅</div>
-                  <div className="preview-info">
-                    <h3>{parsedPreview.name}</h3>
-                    <p>Код: {parsedPreview.code}</p>
-                  </div>
+                {/* Editable Project Name */}
+                <div className="preview-project-name">
+                  <label>Название проекта:</label>
+                  <input
+                    type="text"
+                    className="project-name-input"
+                    value={editableProjectName}
+                    onChange={(e) => setEditableProjectName(e.target.value)}
+                    placeholder="Введите название проекта"
+                  />
                 </div>
 
+                {/* Stats */}
                 <div className="preview-stats">
                   <div className="preview-stat">
-                    <span className="stat-value">{parsedPreview.workItems.length}</span>
-                    <span className="stat-label">Позиций</span>
+                    <span className="stat-value">{itemsToImport.length}</span>
+                    <span className="stat-label">Позиций к импорту</span>
                   </div>
                   <div className="preview-stat">
-                    <span className="stat-value">{formatNumber(parsedPreview.totalArea)}</span>
+                    <span className="stat-value">{formatNumber(totalArea)}</span>
                     <span className="stat-label">м² площадь</span>
                   </div>
                   <div className="preview-stat">
-                    <span className="stat-value">{formatCurrency(getProjectTotals(parsedPreview.workItems).pzTotal * 1000)}</span>
-                    <span className="stat-label">ПЗ Итого</span>
+                    <span className="stat-value">{formatCurrency(totalPz * 1000)}</span>
+                    <span className="stat-label">Сумма</span>
                   </div>
                 </div>
 
-                {/* Project/Tender selector */}
+                {/* Detected Columns Info */}
+                {Object.keys(detectedColumns).length > 0 && (
+                  <div className="detected-columns">
+                    <h4>Распознанные колонки:</h4>
+                    <div className="column-tags">
+                      {Object.entries(detectedColumns)
+                        .filter(([, idx]) => idx !== -1)
+                        .slice(0, 6)
+                        .map(([key, idx]) => (
+                          <span key={key} className="column-tag">
+                            {columnLabels[key] || key}: колонка {idx + 1}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Target Project Selector */}
                 <div className="target-project-selector">
-                  <h4>📁 Привязать к тендеру:</h4>
+                  <h4>Привязать к проекту:</h4>
                   <select
                     className="project-select"
                     value={selectedTargetProject}
                     onChange={(e) => setSelectedTargetProject(e.target.value)}
                   >
-                    <option value="new">➕ Создать новый проект</option>
+                    <option value="new">+ Создать новый проект</option>
                     {projects.map(project => (
                       <option key={project.id} value={project.id}>
                         {project.name} ({project.code})
                       </option>
                     ))}
                   </select>
-                  {selectedTargetProject !== 'new' && (
-                    <p className="selector-hint">
-                      Данные будут добавлены к существующему проекту "{projects.find(p => p.id === selectedTargetProject)?.name}"
-                    </p>
-                  )}
                 </div>
 
+                {/* Categories Summary */}
                 <div className="preview-categories">
                   <h4>Категории работ:</h4>
                   <div className="category-tags">
-                    {[...new Set(parsedPreview.workItems.map(w => w.category))].map(cat => (
-                      <span key={cat} className="category-tag">
-                        {cat} ({parsedPreview.workItems.filter(w => w.category === cat).length})
-                      </span>
-                    ))}
+                    {categories.map(cat => {
+                      const count = itemsToImport.filter(w => w.category === cat).length;
+                      return (
+                        <span key={cat} className={`category-tag ${count === 0 ? 'excluded' : ''}`}>
+                          {cat} ({count})
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
 
+                {/* Editable Table */}
                 <div className="preview-table-container">
-                  <h4>Предварительный просмотр (первые 5 позиций):</h4>
-                  <table className="preview-table">
-                    <thead>
-                      <tr>
-                        <th>Категория</th>
-                        <th>ПЗ Итого</th>
-                        <th>Площадь</th>
-                        <th>Объём</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parsedPreview.workItems.slice(0, 5).map(item => (
-                        <tr key={item.id}>
-                          <td>{item.category}</td>
-                          <td>{formatNumber(item.pzTotal)}</td>
-                          <td>{item.area > 0 ? formatNumber(item.area) : '-'}</td>
-                          <td>{item.volume > 0 ? formatNumber(item.volume) : '-'}</td>
+                  <div className="preview-table-header">
+                    <h4>Данные для импорта:</h4>
+                    {excludedRowIds.size > 0 && (
+                      <span className="excluded-count">
+                        Исключено: {excludedRowIds.size}
+                      </span>
+                    )}
+                  </div>
+                  <div className="preview-table-scroll">
+                    <table className="preview-table editable">
+                      <thead>
+                        <tr>
+                          <th className="th-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={excludedRowIds.size === 0}
+                              onChange={() => {
+                                if (excludedRowIds.size === 0) {
+                                  setExcludedRowIds(new Set(editedWorkItems.map(w => w.id)));
+                                } else {
+                                  setExcludedRowIds(new Set());
+                                }
+                              }}
+                              title="Выбрать все"
+                            />
+                          </th>
+                          <th>Категория</th>
+                          <th>Описание</th>
+                          <th className="th-number">Сумма</th>
+                          <th className="th-number">Кол-во</th>
+                          <th className="th-actions"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {parsedPreview.workItems.length > 5 && (
-                    <p className="preview-more">...и ещё {parsedPreview.workItems.length - 5} позиций</p>
+                      </thead>
+                      <tbody>
+                        {displayedItems.map(item => {
+                          const isExcluded = excludedRowIds.has(item.id);
+                          const isEditing = editingRowId === item.id;
+
+                          return (
+                            <tr key={item.id} className={`${isExcluded ? 'row-excluded' : ''} ${isEditing ? 'row-editing' : ''}`}>
+                              <td className="td-checkbox">
+                                <input
+                                  type="checkbox"
+                                  checked={!isExcluded}
+                                  onChange={() => toggleRowExclusion(item.id)}
+                                />
+                              </td>
+                              <td>
+                                {isEditing ? (
+                                  <select
+                                    className="category-select"
+                                    value={item.category}
+                                    onChange={(e) => updateWorkItem(item.id, { category: e.target.value })}
+                                  >
+                                    {WORK_CATEGORIES.map(cat => (
+                                      <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                    <option value="Общестроительные работы">Общестроительные работы</option>
+                                  </select>
+                                ) : (
+                                  <span className="category-cell">{item.category}</span>
+                                )}
+                              </td>
+                              <td className="td-description">
+                                <span title={item.comment}>
+                                  {item.comment.length > 40 ? item.comment.substring(0, 40) + '...' : item.comment}
+                                </span>
+                              </td>
+                              <td className="td-number">{formatNumber(item.pzTotal)}</td>
+                              <td className="td-number">{item.area > 0 ? formatNumber(item.area) : '-'}</td>
+                              <td className="td-actions">
+                                <button
+                                  className="btn-icon"
+                                  onClick={() => setEditingRowId(isEditing ? null : item.id)}
+                                  title={isEditing ? 'Готово' : 'Редактировать'}
+                                >
+                                  {isEditing ? '✓' : '✎'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {editedWorkItems.length > 10 && (
+                    <button
+                      className="btn-show-more"
+                      onClick={() => setShowAllPreviewRows(!showAllPreviewRows)}
+                    >
+                      {showAllPreviewRows
+                        ? 'Скрыть'
+                        : `Показать все (${editedWorkItems.length} позиций)`}
+                    </button>
                   )}
                 </div>
               </div>
@@ -1044,9 +1209,9 @@ function App() {
             <button className="btn-secondary" onClick={resetUploadModal}>
               Отмена
             </button>
-            {uploadProgress === 'success' && parsedPreview && (
+            {uploadProgress === 'success' && itemsToImport.length > 0 && (
               <button className="btn-primary" onClick={confirmImport}>
-                <span>✓</span> Импортировать данные
+                Импортировать ({itemsToImport.length})
               </button>
             )}
           </div>
