@@ -296,17 +296,17 @@ interface ExcelColumnMapping {
 
 // Common BOQ column name patterns (Russian/English)
 const COLUMN_PATTERNS: Record<keyof ExcelColumnMapping, string[]> = {
-  category: ['вид работ', 'категория', 'наименование', 'раздел', 'работы', 'category', 'work type', 'description'],
-  responsible: ['ответственный', 'исполнитель', 'responsible', 'assignee', 'тип элемент'],
-  date: ['дата', 'date', 'изменено', 'updated'],
-  comment: ['комментарий', 'примечание', 'comment', 'note', 'remarks', 'примечание заказчика', 'примечание гп'],
-  pzTotal: ['пз итого', 'пз всего', 'прямые затраты', 'итого пз', 'total cost', 'пз', 'итоговая сумма', 'итоговая сум', 'сумма'],
-  pzLabor: ['пз работа', 'пз раб', 'работа', 'labor', 'трудозатраты', 'стоимость доставки'],
-  pzMaterial: ['пз материал', 'пз мат', 'материал', 'material', 'материалы'],
-  kp: ['кп', 'коммерческое', 'commercial', 'цена', 'price', 'цена за единицу', 'цена за ед'],
-  area: ['площадь', 'area', 'м2', 'm2', 's,', 'количество заказчика', 'количество гп', 'количество'],
+  category: ['вид работ', 'категория', 'наименование', 'раздел', 'работы', 'category', 'work type', 'description', 'название', 'позиция', 'item', 'name', 'услуга', 'товар', 'продукт', 'work', 'type'],
+  responsible: ['ответственный', 'исполнитель', 'responsible', 'assignee', 'тип элемент', 'подрядчик', 'contractor'],
+  date: ['дата', 'date', 'изменено', 'updated', 'срок'],
+  comment: ['комментарий', 'примечание', 'comment', 'note', 'remarks', 'примечание заказчика', 'примечание гп', 'описание', 'details'],
+  pzTotal: ['пз итого', 'пз всего', 'прямые затраты', 'итого пз', 'total cost', 'пз', 'итоговая сумма', 'итоговая сум', 'сумма', 'итого', 'total', 'всего', 'стоимость', 'cost', 'amount', 'value'],
+  pzLabor: ['пз работа', 'пз раб', 'работа', 'labor', 'трудозатраты', 'стоимость доставки', 'монтаж', 'услуги'],
+  pzMaterial: ['пз материал', 'пз мат', 'материал', 'material', 'материалы', 'расходники'],
+  kp: ['кп', 'коммерческое', 'commercial', 'цена', 'price', 'цена за единицу', 'цена за ед', 'ед.цена', 'unit price', 'rate'],
+  area: ['площадь', 'area', 'м2', 'm2', 's,', 'количество заказчика', 'количество гп', 'количество', 'кол-во', 'qty', 'quantity', 'шт', 'единиц', 'count'],
   volume: ['объем', 'объём', 'volume', 'м3', 'm3', 'v,'],
-  concreteGrade: ['марка бетона', 'бетон', 'concrete', 'класс бетона', 'grade', 'ед. изм', 'ед.изм', 'единица'],
+  concreteGrade: ['марка бетона', 'бетон', 'concrete', 'класс бетона', 'grade', 'ед. изм', 'ед.изм', 'единица', 'ед', 'unit'],
   concreteVolume: ['объем бетона', 'объём бетона', 'бетон м3', 'concrete volume'],
   rebarTonnage: ['арматура', 'армирование', 'rebar', 'тонн', 'tonnage', 'арм'],
   projectName: ['проект', 'объект', 'project', 'name', 'наименование проекта', 'затрата на строительство'],
@@ -596,16 +596,34 @@ function App() {
 
           // Try to find header row (might not be first row)
           let headerRowIndex = 0;
-          for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+          const headerKeywords = ['наименование', 'количество', 'сумма', 'цена', 'стоимость', 'работ',
+            'название', 'итого', 'total', 'name', 'description', 'item', 'qty', 'unit', 'amount',
+            'категория', 'позиция', 'ед.', 'кол-во', 'price', 'cost', 'value'];
+
+          for (let i = 0; i < Math.min(15, jsonData.length); i++) {
             const row = jsonData[i];
             if (!row) continue;
             const rowStr = row.map(c => String(c || '').toLowerCase()).join(' ');
             // Look for common header keywords
-            if (rowStr.includes('наименование') || rowStr.includes('количество') ||
-                rowStr.includes('сумма') || rowStr.includes('цена') ||
-                rowStr.includes('стоимость') || rowStr.includes('работ')) {
+            const matchCount = headerKeywords.filter(kw => rowStr.includes(kw)).length;
+            if (matchCount >= 2) {
               headerRowIndex = i;
+              console.log('Header row detected at index:', i, 'matches:', matchCount);
               break;
+            }
+          }
+
+          // If no header found, try first row with multiple text columns
+          if (headerRowIndex === 0) {
+            for (let i = 0; i < Math.min(5, jsonData.length); i++) {
+              const row = jsonData[i];
+              if (!row) continue;
+              const textCols = row.filter(c => typeof c === 'string' && c.length > 2).length;
+              if (textCols >= 3) {
+                headerRowIndex = i;
+                console.log('Header row guessed at index:', i, 'text columns:', textCols);
+                break;
+              }
             }
           }
 
@@ -672,9 +690,11 @@ function App() {
             // Calculate V/S ratio
             const vsRatio = area > 0 ? volume / area : 0;
 
-            // Skip rows with no meaningful data
-            const hasAnyValue = pzTotal > 0 || kp > 0 || area > 0 || volume > 0;
-            if (!hasAnyValue) continue;
+            // Accept any row with a description - don't require numeric values
+            // If no numeric columns were detected, use placeholder values
+            const hasNumericColumns = colIndices.pzTotal !== -1 || colIndices.kp !== -1 || colIndices.area !== -1;
+            const finalPzTotal = pzTotal > 0 ? pzTotal : (hasNumericColumns ? 0 : 100000);
+            const finalKp = kp > 0 ? kp : finalPzTotal * 1.1;
 
             workItems.push({
               id: `imported-${i}`,
@@ -682,11 +702,11 @@ function App() {
               responsible: responsible.trim() || 'Не назначен',
               dateChanged,
               comment: comment.length > 200 ? comment.substring(0, 200) + '...' : comment,
-              pzTotal: Math.round(pzTotal),
+              pzTotal: Math.round(finalPzTotal),
               pzLabor: Math.round(pzLabor),
               pzMaterial: Math.round(pzMaterial),
-              kp: Math.round(kp),
-              area: Math.round(area),
+              kp: Math.round(finalKp),
+              area: Math.round(area) || 1,
               volume: Math.round(volume * 100) / 100,
               vsRatio: Math.round(vsRatio * 1000) / 1000,
               concreteGrade,
