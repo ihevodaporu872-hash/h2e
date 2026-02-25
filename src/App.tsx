@@ -75,7 +75,8 @@ interface Project {
 
 interface TenderRow {
   id: string;
-  name: string;           // A: Затрата тендера
+  name: string;           // A: Затрата тендера (Комментарий)
+  category: string;       // Вид работ (detected from name)
   volume: number;         // B: Объем
   unit: string;           // C: Ед. изм.
   pzLabor: number;        // D: Прямые затраты - Итого работ за ед.
@@ -873,9 +874,13 @@ function App() {
             // Check if this is a main section (XX. NAME) or sub-item (XX.XX. NAME)
             const isSectionHeader = /^\d{2}\.\s+[А-ЯЁA-Z]/.test(name) && !/^\d{2}\.\d{2}\./.test(name);
 
+            // Detect category from the item name
+            const category = detectCategory(name);
+
             const tenderRow: TenderRow = {
               id: `row-${i}`,
               name,
+              category,
               volume,
               unit,
               pzLabor,
@@ -1746,7 +1751,8 @@ function App() {
                       <table className="tender-table">
                         <thead>
                           <tr className="tender-header-row-1">
-                            <th rowSpan={2} className="th-name">Затрата тендера</th>
+                            <th rowSpan={2} className="th-name">Комментарий</th>
+                            <th rowSpan={2} className="th-category">Вид работ</th>
                             <th rowSpan={2} className="th-volume">Объем</th>
                             <th rowSpan={2} className="th-unit">Ед. изм.</th>
                             <th colSpan={3} className="th-group th-pz">Прямые Затраты</th>
@@ -1777,6 +1783,7 @@ function App() {
                                   </span>
                                   {section.name}
                                 </td>
+                                <td className="td-category">{section.rows[0]?.category || ''}</td>
                                 <td className="td-volume">
                                   {section.rows[0]?.volume > 0
                                     ? formatNumber(section.rows[0].volume)
@@ -1813,6 +1820,7 @@ function App() {
                                   .map((row) => (
                                     <tr key={row.id} className="tender-item-row">
                                       <td className="td-name td-subitem">{row.name}</td>
+                                      <td className="td-category">{row.category}</td>
                                       <td className="td-volume">
                                         {row.volume > 0 ? formatNumber(row.volume) : ''}
                                       </td>
@@ -1851,7 +1859,7 @@ function App() {
                         </tbody>
                         <tfoot>
                           <tr className="tender-totals-row">
-                            <td colSpan={3}>
+                            <td colSpan={4}>
                               <strong>ИТОГО:</strong>
                             </td>
                             <td className="td-number td-pz">

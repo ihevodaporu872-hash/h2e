@@ -2321,8 +2321,22 @@ body {
 }
 
 .th-name {
-  min-width: 300px;
+  min-width: 280px;
   text-align: left !important;
+}
+
+.th-category {
+  min-width: 140px;
+  text-align: left !important;
+}
+
+.td-category {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
 }
 
 .th-volume {
