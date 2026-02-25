@@ -1449,11 +1449,7 @@ function App() {
             <p className="page-description">Сводка по проектам и видам работ</p>
           </div>
           <div className="page-actions">
-            <button className="btn-secondary" onClick={() => {
-              alert('Button clicked!');
-              console.log('Импорт Excel button clicked');
-              setShowUploadModal(true);
-            }}>
+            <button className="btn-secondary" onClick={() => setShowUploadModal(true)}>
               <span>📥</span> Импорт Excel
             </button>
             <button className="btn-primary"><span>📤</span> Экспорт</button>
