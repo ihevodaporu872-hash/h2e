@@ -572,16 +572,23 @@ function App() {
 
   // Parse Excel file
   const parseExcelFile = useCallback(async (file: File): Promise<Project> => {
+    console.log('parseExcelFile called for:', file.name);
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
       reader.onload = (e) => {
+        console.log('FileReader onload triggered');
         try {
           const data = e.target?.result;
+          console.log('Data loaded, size:', typeof data === 'string' ? data.length : 'unknown');
           const workbook = XLSX.read(data, { type: 'binary' });
+          console.log('Workbook parsed, sheets:', workbook.SheetNames);
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | null)[][];
+
+          console.log('JSON data rows:', jsonData.length);
+          console.log('First 3 rows:', jsonData.slice(0, 3));
 
           if (jsonData.length < 2) {
             throw new Error('Файл пуст или содержит менее 2 строк');
@@ -612,6 +619,7 @@ function App() {
           }
 
           // Store detected columns for UI display
+          console.log('Column indices found:', colIndices);
           setDetectedColumns(colIndices);
 
           // Extract project name from filename or first cell
@@ -687,6 +695,8 @@ function App() {
               status: 'pending' as const,
             });
           }
+
+          console.log('Work items parsed:', workItems.length);
 
           if (workItems.length === 0) {
             // Build helpful error message with detected columns info
@@ -804,7 +814,9 @@ function App() {
 
   // Handle file input change
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('handleFileInputChange triggered');
     const files = e.target.files;
+    console.log('Files selected:', files?.length, files?.[0]?.name);
     if (files && files.length > 0) {
       handleFileUpload(files[0]);
     }
