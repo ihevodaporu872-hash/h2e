@@ -380,6 +380,41 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string>('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginNameInput, setLoginNameInput] = useState('');
+
+  // Load user from localStorage on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('h2e_user_name');
+    if (savedUser) {
+      setCurrentUser(savedUser);
+      setIsLoggedIn(true);
+    } else {
+      setShowLoginModal(true);
+    }
+  }, []);
+
+  // Handle user login
+  const handleLogin = () => {
+    if (loginNameInput.trim()) {
+      const userName = loginNameInput.trim();
+      setCurrentUser(userName);
+      setIsLoggedIn(true);
+      localStorage.setItem('h2e_user_name', userName);
+      setShowLoginModal(false);
+      setLoginNameInput('');
+    }
+  };
+
+  // Handle user logout
+  const handleLogout = () => {
+    setCurrentUser('');
+    setIsLoggedIn(false);
+    localStorage.removeItem('h2e_user_name');
+    setShowUserMenu(false);
+    setShowLoginModal(true);
+  };
 
   // Indicators page state
   const [projects, setProjects] = useState<Project[]>([]);
@@ -439,16 +474,6 @@ function App() {
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
-
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setShowUserMenu(false);
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setShowUserMenu(false);
   };
 
   // Tender project toggle functions
@@ -545,14 +570,19 @@ function App() {
     setCommentPanelOpen(true);
   };
 
-  // Save comment from panel
+  // Save comment from panel (appends user name)
   const saveCommentFromPanel = () => {
-    if (commentPanelData) {
+    if (commentPanelData && commentValue.trim()) {
+      // Append username to comment: "comment text_Username"
+      const commentWithUser = currentUser
+        ? `${commentValue.trim()}_${currentUser}`
+        : commentValue.trim();
+
       updateTenderRowComment(
         commentPanelData.projectId,
         commentPanelData.fileId,
         commentPanelData.rowId,
-        commentValue
+        commentWithUser
       );
     }
     setCommentPanelOpen(false);
@@ -2927,14 +2957,17 @@ function App() {
             <div className="user-account">
               <button className="user-btn" onClick={() => setShowUserMenu(!showUserMenu)}>
                 <div className="user-avatar">{isLoggedIn ? '👤' : '○'}</div>
-                <span className="user-name">{isLoggedIn ? 'Инженер' : 'Гость'}</span>
+                <span className="user-name">{isLoggedIn ? currentUser : 'Гость'}</span>
                 <span className="dropdown-arrow">▼</span>
               </button>
               {showUserMenu && (
                 <div className="user-dropdown">
                   {isLoggedIn ? (
                     <>
-                      <div className="dropdown-header"><span className="dropdown-email">engineer@h2e.ru</span></div>
+                      <div className="dropdown-header">
+                        <span className="dropdown-user-name">{currentUser}</span>
+                        <span className="dropdown-email">Активный пользователь</span>
+                      </div>
                       <button className="dropdown-item"><span>👤</span> Профиль</button>
                       <button className="dropdown-item"><span>⚙️</span> Настройки</button>
                       <div className="dropdown-divider"></div>
@@ -2942,8 +2975,7 @@ function App() {
                     </>
                   ) : (
                     <>
-                      <button className="dropdown-item" onClick={handleLogin}><span>🔑</span> Войти</button>
-                      <button className="dropdown-item"><span>📝</span> Регистрация</button>
+                      <button className="dropdown-item" onClick={() => setShowLoginModal(true)}><span>🔑</span> Войти</button>
                     </>
                   )}
                 </div>
@@ -2959,6 +2991,45 @@ function App() {
 
       {/* Upload Modal */}
       {renderUploadModal()}
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <div className="login-modal-overlay">
+          <div className="login-modal">
+            <div className="login-modal-header">
+              <span className="login-icon">🏗️</span>
+              <h2>H2E - Document Management</h2>
+              <p>Войдите для начала работы</p>
+            </div>
+            <div className="login-modal-content">
+              <label className="login-label">Ваше имя (ФИО или инициалы):</label>
+              <input
+                type="text"
+                className="login-input"
+                value={loginNameInput}
+                onChange={(e) => setLoginNameInput(e.target.value)}
+                placeholder="Например: Луис Д.Ж."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleLogin();
+                }}
+              />
+              <p className="login-hint">
+                Это имя будет автоматически добавляться к вашим комментариям
+              </p>
+            </div>
+            <div className="login-modal-actions">
+              <button
+                className="btn-primary login-btn"
+                onClick={handleLogin}
+                disabled={!loginNameInput.trim()}
+              >
+                🚀 Войти
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
