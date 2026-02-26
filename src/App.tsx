@@ -495,9 +495,16 @@ function App() {
     );
   };
 
-  // State for editing comments in tender table
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentValue, setEditingCommentValue] = useState<string>('');
+  // State for comment panel (modern slide-in panel)
+  const [commentPanelOpen, setCommentPanelOpen] = useState(false);
+  const [commentPanelData, setCommentPanelData] = useState<{
+    rowId: string;
+    rowName: string;
+    projectId: string;
+    fileId: string;
+    comment: string;
+  } | null>(null);
+  const [commentValue, setCommentValue] = useState<string>('');
 
   // Update comment/category in tender row
   const updateTenderRowComment = (projectId: string, fileId: string, rowId: string, newComment: string) => {
@@ -525,23 +532,39 @@ function App() {
     );
   };
 
-  // Start editing a comment
-  const startEditingComment = (rowId: string, currentValue: string) => {
-    setEditingCommentId(rowId);
-    setEditingCommentValue(currentValue);
+  // Open comment panel
+  const openCommentPanel = (rowId: string, rowName: string, projectId: string, fileId: string, currentComment: string) => {
+    setCommentPanelData({
+      rowId,
+      rowName,
+      projectId,
+      fileId,
+      comment: currentComment,
+    });
+    setCommentValue(currentComment);
+    setCommentPanelOpen(true);
   };
 
-  // Save the edited comment
-  const saveEditedComment = (projectId: string, fileId: string, rowId: string) => {
-    updateTenderRowComment(projectId, fileId, rowId, editingCommentValue);
-    setEditingCommentId(null);
-    setEditingCommentValue('');
+  // Save comment from panel
+  const saveCommentFromPanel = () => {
+    if (commentPanelData) {
+      updateTenderRowComment(
+        commentPanelData.projectId,
+        commentPanelData.fileId,
+        commentPanelData.rowId,
+        commentValue
+      );
+    }
+    setCommentPanelOpen(false);
+    setCommentPanelData(null);
+    setCommentValue('');
   };
 
-  // Cancel editing
-  const cancelEditingComment = () => {
-    setEditingCommentId(null);
-    setEditingCommentValue('');
+  // Close comment panel
+  const closeCommentPanel = () => {
+    setCommentPanelOpen(false);
+    setCommentPanelData(null);
+    setCommentValue('');
   };
 
   const formatNumber = (num: number): string => num.toLocaleString('ru-RU');
@@ -2250,31 +2273,18 @@ function App() {
                                               className="td-category td-editable"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                startEditingComment(row.id, row.category);
+                                                openCommentPanel(row.id, row.name, project.id, file.id, row.category);
                                               }}
                                             >
-                                              {editingCommentId === row.id ? (
-                                                <input
-                                                  type="text"
-                                                  className="comment-edit-input"
-                                                  value={editingCommentValue}
-                                                  onChange={(e) => setEditingCommentValue(e.target.value)}
-                                                  onBlur={() => saveEditedComment(project.id, file.id, row.id)}
-                                                  onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                      saveEditedComment(project.id, file.id, row.id);
-                                                    } else if (e.key === 'Escape') {
-                                                      cancelEditingComment();
-                                                    }
-                                                  }}
-                                                  autoFocus
-                                                  onClick={(e) => e.stopPropagation()}
-                                                />
-                                              ) : (
-                                                <span className="editable-text" title="Нажмите для редактирования">
-                                                  {row.category || <em style={{ color: 'var(--text-tertiary)' }}>+ добавить</em>}
-                                                </span>
-                                              )}
+                                              <span className="editable-text" title="Нажмите для редактирования">
+                                                {row.category ? (
+                                                  <span className="comment-preview">
+                                                    💬 {row.category.length > 30 ? row.category.substring(0, 30) + '...' : row.category}
+                                                  </span>
+                                                ) : (
+                                                  <em style={{ color: 'var(--text-tertiary)' }}>+ добавить</em>
+                                                )}
+                                              </span>
                                             </td>
                                             <td className="td-volume">
                                               {row.volume > 0 ? formatNumber(row.volume) : ''}
@@ -2367,6 +2377,44 @@ function App() {
             <div className="legend-item"><span className="legend-color legend-white"></span> Подпозиция</div>
           </div>
         </div>
+
+        {/* Comment Panel - Slide-in from left */}
+        {commentPanelOpen && commentPanelData && (
+          <div className="comment-panel-overlay" onClick={closeCommentPanel}>
+            <div className="comment-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="comment-panel-header">
+                <h3>💬 Комментарий</h3>
+                <button className="comment-panel-close" onClick={closeCommentPanel}>×</button>
+              </div>
+
+              <div className="comment-panel-row-info">
+                <span className="row-label">Вид работ:</span>
+                <span className="row-name">{commentPanelData.rowName}</span>
+              </div>
+
+              <div className="comment-panel-content">
+                <label className="comment-label">Текст комментария:</label>
+                <textarea
+                  className="comment-panel-textarea"
+                  value={commentValue}
+                  onChange={(e) => setCommentValue(e.target.value)}
+                  placeholder="Введите комментарий здесь..."
+                  autoFocus
+                  rows={8}
+                />
+              </div>
+
+              <div className="comment-panel-actions">
+                <button className="btn-secondary" onClick={closeCommentPanel}>
+                  Отмена
+                </button>
+                <button className="btn-primary" onClick={saveCommentFromPanel}>
+                  💾 Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
