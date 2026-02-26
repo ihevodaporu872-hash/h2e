@@ -1101,24 +1101,7 @@ function App() {
             sections.push(currentSection);
           }
 
-          // Calculate totals for each section (sum of sub-items, excluding section header)
-          sections.forEach((section) => {
-            const subItems = section.rows.filter((r) => !r.isSection);
-            if (subItems.length > 0) {
-              section.totals = subItems.reduce(
-                (acc, row) => ({
-                  pzLabor: acc.pzLabor + row.pzLabor,
-                  pzMaterial: acc.pzMaterial + row.pzMaterial,
-                  pzTotal: acc.pzTotal + row.pzTotal,
-                  kzLabor: acc.kzLabor + row.kzLabor,
-                  kzMaterial: acc.kzMaterial + row.kzMaterial,
-                  kzTotal: acc.kzTotal + row.kzTotal,
-                  totalPerGBA: acc.totalPerGBA + row.totalPerGBA,
-                }),
-                { pzLabor: 0, pzMaterial: 0, pzTotal: 0, kzLabor: 0, kzMaterial: 0, kzTotal: 0, totalPerGBA: 0 }
-              );
-            }
-          });
+          // NO CALCULATIONS - Section totals use values directly from Excel section header row
 
           const tenderProject: TenderProject = {
             id: `tender-${Date.now()}`,
@@ -1910,11 +1893,11 @@ function App() {
                     <div className="project-stats">
                       <div className="project-stat">
                         <span className="stat-label">ПЗ Итого</span>
-                        <span className="stat-value">{formatNumber(Math.round(projectTotals.pzTotal))}</span>
+                        <span className="stat-value">{formatNumber(projectTotals.pzTotal)}</span>
                       </div>
                       <div className="project-stat highlight">
                         <span className="stat-label">КЗ Итого</span>
-                        <span className="stat-value">{formatNumber(Math.round(projectTotals.kzTotal))}</span>
+                        <span className="stat-value">{formatNumber(projectTotals.kzTotal)}</span>
                       </div>
                     </div>
                   </div>
@@ -1964,25 +1947,25 @@ function App() {
                                 </td>
                                 <td className="td-unit">{section.rows[0]?.unit || ''}</td>
                                 <td className="td-number td-pz">
-                                  {formatNumber(Math.round(section.totals.pzLabor))}
+                                  {formatNumber(section.totals.pzLabor)}
                                 </td>
                                 <td className="td-number td-pz">
-                                  {formatNumber(Math.round(section.totals.pzMaterial))}
+                                  {formatNumber(section.totals.pzMaterial)}
                                 </td>
                                 <td className="td-number td-pz td-total">
-                                  {formatNumber(Math.round(section.totals.pzTotal))}
+                                  {formatNumber(section.totals.pzTotal)}
                                 </td>
                                 <td className="td-number td-kz">
-                                  {formatNumber(Math.round(section.totals.kzLabor))}
+                                  {formatNumber(section.totals.kzLabor)}
                                 </td>
                                 <td className="td-number td-kz">
-                                  {formatNumber(Math.round(section.totals.kzMaterial))}
+                                  {formatNumber(section.totals.kzMaterial)}
                                 </td>
                                 <td className="td-number td-kz td-total">
-                                  {formatNumber(Math.round(section.totals.kzTotal))}
+                                  {formatNumber(section.totals.kzTotal)}
                                 </td>
                                 <td className="td-number td-gba">
-                                  {formatNumber(Math.round(section.totals.totalPerGBA))}
+                                  {formatNumber(section.totals.totalPerGBA)}
                                 </td>
                               </tr>
 
@@ -1999,31 +1982,25 @@ function App() {
                                       </td>
                                       <td className="td-unit">{row.unit}</td>
                                       <td className="td-number td-pz">
-                                        {row.pzLabor > 0 ? formatNumber(Math.round(row.pzLabor)) : ''}
+                                        {row.pzLabor > 0 ? formatNumber(row.pzLabor) : ''}
                                       </td>
                                       <td className="td-number td-pz">
-                                        {row.pzMaterial > 0
-                                          ? formatNumber(Math.round(row.pzMaterial))
-                                          : ''}
+                                        {row.pzMaterial > 0 ? formatNumber(row.pzMaterial) : ''}
                                       </td>
                                       <td className="td-number td-pz td-total">
-                                        {row.pzTotal > 0 ? formatNumber(Math.round(row.pzTotal)) : ''}
+                                        {row.pzTotal > 0 ? formatNumber(row.pzTotal) : ''}
                                       </td>
                                       <td className="td-number td-kz">
-                                        {row.kzLabor > 0 ? formatNumber(Math.round(row.kzLabor)) : ''}
+                                        {row.kzLabor > 0 ? formatNumber(row.kzLabor) : ''}
                                       </td>
                                       <td className="td-number td-kz">
-                                        {row.kzMaterial > 0
-                                          ? formatNumber(Math.round(row.kzMaterial))
-                                          : ''}
+                                        {row.kzMaterial > 0 ? formatNumber(row.kzMaterial) : ''}
                                       </td>
                                       <td className="td-number td-kz td-total">
-                                        {row.kzTotal > 0 ? formatNumber(Math.round(row.kzTotal)) : ''}
+                                        {row.kzTotal > 0 ? formatNumber(row.kzTotal) : ''}
                                       </td>
                                       <td className="td-number td-gba">
-                                        {row.totalPerGBA > 0
-                                          ? formatNumber(Math.round(row.totalPerGBA))
-                                          : ''}
+                                        {row.totalPerGBA > 0 ? formatNumber(row.totalPerGBA) : ''}
                                       </td>
                                     </tr>
                                   ))}
@@ -2036,25 +2013,25 @@ function App() {
                               <strong>ИТОГО:</strong>
                             </td>
                             <td className="td-number td-pz">
-                              <strong>{formatNumber(Math.round(projectTotals.pzLabor))}</strong>
+                              <strong>{formatNumber(projectTotals.pzLabor)}</strong>
                             </td>
                             <td className="td-number td-pz">
-                              <strong>{formatNumber(Math.round(projectTotals.pzMaterial))}</strong>
+                              <strong>{formatNumber(projectTotals.pzMaterial)}</strong>
                             </td>
                             <td className="td-number td-pz td-total">
-                              <strong>{formatNumber(Math.round(projectTotals.pzTotal))}</strong>
+                              <strong>{formatNumber(projectTotals.pzTotal)}</strong>
                             </td>
                             <td className="td-number td-kz">
-                              <strong>{formatNumber(Math.round(projectTotals.kzLabor))}</strong>
+                              <strong>{formatNumber(projectTotals.kzLabor)}</strong>
                             </td>
                             <td className="td-number td-kz">
-                              <strong>{formatNumber(Math.round(projectTotals.kzMaterial))}</strong>
+                              <strong>{formatNumber(projectTotals.kzMaterial)}</strong>
                             </td>
                             <td className="td-number td-kz td-total">
-                              <strong>{formatNumber(Math.round(projectTotals.kzTotal))}</strong>
+                              <strong>{formatNumber(projectTotals.kzTotal)}</strong>
                             </td>
                             <td className="td-number td-gba">
-                              <strong>{formatNumber(Math.round(projectTotals.totalPerGBA))}</strong>
+                              <strong>{formatNumber(projectTotals.totalPerGBA)}</strong>
                             </td>
                           </tr>
                         </tfoot>
