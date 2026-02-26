@@ -2316,7 +2316,22 @@ function App() {
                                               <span className="editable-text" title="Нажмите для редактирования">
                                                 {row.category ? (
                                                   <span className="comment-preview">
-                                                    💬 {row.category.length > 30 ? row.category.substring(0, 30) + '...' : row.category}
+                                                    {(() => {
+                                                      // Parse format: "Username Дата изменения: DD.MM.YYYY: comment text"
+                                                      const match = row.category.match(/^(.+Дата изменения:\s*[\d.]+):\s*(.+)$/);
+                                                      if (match) {
+                                                        const [, metadata, commentText] = match;
+                                                        const shortComment = commentText.length > 25 ? commentText.substring(0, 25) + '...' : commentText;
+                                                        return (
+                                                          <>
+                                                            <span className="comment-metadata">💬 {metadata}: </span>
+                                                            <span className="comment-text">{shortComment}</span>
+                                                          </>
+                                                        );
+                                                      }
+                                                      // Fallback for old format
+                                                      return <>💬 {row.category.length > 30 ? row.category.substring(0, 30) + '...' : row.category}</>;
+                                                    })()}
                                                   </span>
                                                 ) : (
                                                   <em style={{ color: 'var(--text-tertiary)' }}>+ добавить</em>

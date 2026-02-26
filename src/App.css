@@ -3274,8 +3274,23 @@ body {
 
 /* Comment preview in table cell */
 .comment-preview {
-  color: var(--primary);
   font-size: 0.8rem;
+  display: inline;
+}
+
+.comment-metadata {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.comment-text {
+  color: #22d3ee;
+  font-weight: 600;
+  font-size: 0.85rem;
+  background: rgba(34, 211, 238, 0.15);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.25rem;
 }
 
 @media (max-width: 500px) {
