@@ -388,6 +388,11 @@ function App() {
   // Tender projects state (hierarchical Excel data)
   const [tenderProjects, setTenderProjects] = useState<TenderProject[]>([]);
 
+  // Analytics page state
+  const [analyticsSelectedProjects, setAnalyticsSelectedProjects] = useState<string[]>([]);
+  const [analyticsSelectedWorkType, setAnalyticsSelectedWorkType] = useState<string>('');
+  const [analyticsCostType, setAnalyticsCostType] = useState<'pzTotal' | 'kzTotal' | 'totalPerGBA'>('pzTotal');
+
   // Checklist page state
   const [checklistProjects, setChecklistProjects] = useState<ChecklistProject[]>([]);
   const [checklistFilter, setChecklistFilter] = useState<string>('all');
@@ -2391,11 +2396,209 @@ function App() {
           </div>
         );
       case 'analytics':
+        // Get all unique work types (Вид работ) from selected projects
+        const getWorkTypesFromProjects = () => {
+          const workTypes = new Set<string>();
+          tenderProjects
+            .filter(p => analyticsSelectedProjects.includes(p.id))
+            .forEach(project => {
+              project.files.forEach(file => {
+                file.sections.forEach(section => {
+                  section.rows.forEach(row => {
+                    if (row.name && row.name.trim()) {
+                      workTypes.add(row.name.trim());
+                    }
+                  });
+                });
+              });
+            });
+          return Array.from(workTypes).sort();
+        };
+
+        // Get comparison data for the selected work type
+        const getComparisonData = () => {
+          if (!analyticsSelectedWorkType || analyticsSelectedProjects.length === 0) return [];
+
+          return tenderProjects
+            .filter(p => analyticsSelectedProjects.includes(p.id))
+            .map(project => {
+              // Find the work type in the project's files
+              let foundRow: TenderRow | null = null;
+              let foundFile: TenderFile | null = null;
+
+              for (const file of project.files) {
+                for (const section of file.sections) {
+                  const row = section.rows.find(r => r.name.trim() === analyticsSelectedWorkType);
+                  if (row) {
+                    foundRow = row;
+                    foundFile = file;
+                    break;
+                  }
+                }
+                if (foundRow) break;
+              }
+
+              return {
+                projectId: project.id,
+                projectName: project.name,
+                fileName: foundFile?.name || '-',
+                calculationDate: foundFile?.calculationDate || '-',
+                value: foundRow ? (
+                  analyticsCostType === 'pzTotal' ? foundRow.pzTotal :
+                  analyticsCostType === 'kzTotal' ? foundRow.kzTotal :
+                  foundRow.totalPerGBA
+                ) : null,
+                row: foundRow,
+              };
+            });
+        };
+
+        const availableWorkTypes = getWorkTypesFromProjects();
+        const comparisonData = getComparisonData();
+        const costTypeLabels = {
+          pzTotal: 'Прямые Затраты (Итого за единицу)',
+          kzTotal: 'Коммерческие Затраты (Итого за единицу)',
+          totalPerGBA: 'Итого за ед. общей площади',
+        };
+
         return (
           <div className="page-content">
             <h1>Аналитика</h1>
-            <p className="page-description">Детальный анализ данных и отчётность</p>
-            <div className="placeholder-content"><span className="placeholder-icon">📉</span><p>Раздел в разработке</p></div>
+            <p className="page-description">Сравнительный анализ тендерных проектов</p>
+
+            {tenderProjects.length === 0 ? (
+              <div className="placeholder-content">
+                <span className="placeholder-icon">📉</span>
+                <p>Нет загруженных проектов</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  Загрузите Excel файлы в разделе "Основные показатели"
+                </p>
+              </div>
+            ) : (
+              <div className="analytics-container">
+                {/* Step 1: Select Projects */}
+                <div className="analytics-section">
+                  <h3>1. Выберите тендерные проекты для сравнения</h3>
+                  <div className="project-checkboxes">
+                    {tenderProjects.map(project => (
+                      <label key={project.id} className="project-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={analyticsSelectedProjects.includes(project.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAnalyticsSelectedProjects(prev => [...prev, project.id]);
+                            } else {
+                              setAnalyticsSelectedProjects(prev => prev.filter(id => id !== project.id));
+                              // Reset work type if no projects selected
+                              if (analyticsSelectedProjects.length <= 1) {
+                                setAnalyticsSelectedWorkType('');
+                              }
+                            }
+                          }}
+                        />
+                        <span>{project.name}</span>
+                        <span className="file-count">({project.files.length} файл(ов))</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Step 2: Select Work Type */}
+                {analyticsSelectedProjects.length > 0 && (
+                  <div className="analytics-section">
+                    <h3>2. Выберите Вид работ для сравнения</h3>
+                    <select
+                      className="analytics-select"
+                      value={analyticsSelectedWorkType}
+                      onChange={(e) => setAnalyticsSelectedWorkType(e.target.value)}
+                    >
+                      <option value="">-- Выберите вид работ --</option>
+                      {availableWorkTypes.map(workType => (
+                        <option key={workType} value={workType}>{workType}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Step 3: Select Cost Type */}
+                {analyticsSelectedWorkType && (
+                  <div className="analytics-section">
+                    <h3>3. Выберите показатель для сравнения</h3>
+                    <select
+                      className="analytics-select"
+                      value={analyticsCostType}
+                      onChange={(e) => setAnalyticsCostType(e.target.value as 'pzTotal' | 'kzTotal' | 'totalPerGBA')}
+                    >
+                      <option value="pzTotal">Прямые Затраты (Итого за единицу)</option>
+                      <option value="kzTotal">Коммерческие Затраты (Итого за единицу)</option>
+                      <option value="totalPerGBA">Итого за ед. общей площади</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Comparison Results */}
+                {analyticsSelectedWorkType && comparisonData.length > 0 && (
+                  <div className="analytics-section">
+                    <h3>Результаты сравнения</h3>
+                    <div className="comparison-header">
+                      <strong>Вид работ:</strong> {analyticsSelectedWorkType}<br/>
+                      <strong>Показатель:</strong> {costTypeLabels[analyticsCostType]}
+                    </div>
+
+                    <table className="comparison-table">
+                      <thead>
+                        <tr>
+                          <th>Тендерный проект</th>
+                          <th>Файл</th>
+                          <th>Дата расчетов</th>
+                          <th>{costTypeLabels[analyticsCostType]}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comparisonData.map((data, index) => (
+                          <tr key={data.projectId} className={index === 0 ? 'first-row' : ''}>
+                            <td>{data.projectName}</td>
+                            <td>{data.fileName}</td>
+                            <td>{data.calculationDate}</td>
+                            <td className={`value-cell ${data.value === null ? 'no-data' : ''}`}>
+                              {data.value !== null ? data.value.toLocaleString('ru-RU') : 'Нет данных'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Visual comparison bar chart */}
+                    {comparisonData.some(d => d.value !== null) && (
+                      <div className="comparison-chart">
+                        <h4>Визуальное сравнение</h4>
+                        {(() => {
+                          const maxValue = Math.max(...comparisonData.filter(d => d.value !== null).map(d => d.value!));
+                          return comparisonData.map((data, index) => (
+                            <div key={data.projectId} className="chart-bar-container">
+                              <div className="chart-label">{data.projectName}</div>
+                              <div className="chart-bar-wrapper">
+                                <div
+                                  className="chart-bar"
+                                  style={{
+                                    width: data.value !== null ? `${(data.value / maxValue) * 100}%` : '0%',
+                                    backgroundColor: `hsl(${index * 60}, 70%, 50%)`,
+                                  }}
+                                />
+                                <span className="chart-value">
+                                  {data.value !== null ? data.value.toLocaleString('ru-RU') : '-'}
+                                </span>
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       case 'faq':
