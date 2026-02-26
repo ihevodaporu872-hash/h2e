@@ -828,48 +828,214 @@ function App() {
             throw new Error('Файл пуст или содержит менее 2 строк');
           }
 
-          // Find data start row (skip headers)
+          // ============================================
+          // SMART COLUMN DETECTION - Find columns by header names
+          // ============================================
+
+          // Column mapping structure - we need to find these columns:
+          // - name: "Затрата тендера" (column A usually)
+          // - volume: "Объем"
+          // - unit: "Ед. изм." or "Ед.изм."
+          // - Under "Прямые Затраты": "Итого работ за ед." / "Итого материалов за ед." / "Итого за единицу" or last "Итого"
+          // - Under "Коммерческие Затраты": same sub-columns
+          // - totalPerGBA: "Итого за ед. общей площади" or last column with "Итого"
+
+          interface ColumnMap {
+            name: number;           // Затрата тендера
+            volume: number;         // Объем
+            unit: number;           // Ед. изм.
+            pzLabor: number;        // Прямые затраты - Итого работ за ед.
+            pzMaterial: number;     // Прямые затраты - Итого материалов за ед.
+            pzTotal: number;        // Прямые затраты - Итого за единицу
+            kzLabor: number;        // Коммерческие затраты - Итого работ за ед.
+            kzMaterial: number;     // Коммерческие затраты - Итого материалов за ед.
+            kzTotal: number;        // Коммерческие затраты - Итого за единицу
+            totalPerGBA: number;    // Итого за ед. общей площади
+          }
+
+          const colMap: ColumnMap = {
+            name: 0,
+            volume: -1,
+            unit: -1,
+            pzLabor: -1,
+            pzMaterial: -1,
+            pzTotal: -1,
+            kzLabor: -1,
+            kzMaterial: -1,
+            kzTotal: -1,
+            totalPerGBA: -1,
+          };
+
+          // Scan first 5 rows for headers
+          let headerRow1: (string | number | null)[] = [];
+          let headerRow2: (string | number | null)[] = [];
           let dataStartRow = 0;
+
+          // Find header rows and data start
           for (let i = 0; i < Math.min(10, jsonData.length); i++) {
             const row = jsonData[i];
             if (!row) continue;
-            const firstCell = String(row[0] || '').trim();
+
+            const firstCell = String(row[0] || '').trim().toLowerCase();
+
+            // Check if this is the main header row (contains "затрата тендера")
+            if (firstCell.includes('затрата тендера') || firstCell.includes('затрата') && firstCell.includes('тендер')) {
+              headerRow1 = row;
+              if (jsonData[i + 1]) {
+                headerRow2 = jsonData[i + 1];
+              }
+              continue;
+            }
+
+            // Check if this is a sub-header row (contains column sub-headers)
+            if (firstCell === '' && row.some(cell => String(cell || '').toLowerCase().includes('работы'))) {
+              headerRow2 = row;
+              continue;
+            }
+
             // Find first data row (starts with "01." or similar pattern)
-            if (/^\d{2}\./.test(firstCell)) {
+            if (/^\d{2}\./.test(String(row[0] || '').trim())) {
               dataStartRow = i;
               break;
             }
           }
 
+          // Parse header row 1 to find main column groups
+          let pzGroupStart = -1;
+          let pzGroupEnd = -1;
+          let kzGroupStart = -1;
+          let kzGroupEnd = -1;
+
+          for (let col = 0; col < headerRow1.length; col++) {
+            const cellValue = String(headerRow1[col] || '').trim().toLowerCase();
+
+            if (cellValue.includes('затрата') && cellValue.includes('тендер')) {
+              colMap.name = col;
+            } else if (cellValue === 'объем' || cellValue.includes('объем')) {
+              colMap.volume = col;
+            } else if (cellValue.includes('ед') && (cellValue.includes('изм') || cellValue.includes('.'))) {
+              colMap.unit = col;
+            } else if (cellValue.includes('прямые') && cellValue.includes('затрат')) {
+              pzGroupStart = col;
+            } else if (cellValue.includes('коммерческ') && cellValue.includes('затрат')) {
+              kzGroupStart = col;
+              if (pzGroupStart >= 0) pzGroupEnd = col - 1;
+            } else if ((cellValue.includes('итого') && cellValue.includes('общ') && cellValue.includes('площ')) ||
+                       (cellValue.includes('итого') && cellValue.includes('за ед') && cellValue.includes('общ'))) {
+              colMap.totalPerGBA = col;
+              if (kzGroupStart >= 0) kzGroupEnd = col - 1;
+            }
+          }
+
+          // If we didn't find group boundaries, estimate them
+          if (kzGroupEnd < 0 && colMap.totalPerGBA >= 0) {
+            kzGroupEnd = colMap.totalPerGBA - 1;
+          }
+
+          // Find specific sub-columns within Прямые Затраты group
+          if (pzGroupStart >= 0 && pzGroupEnd >= 0) {
+            for (let col = pzGroupStart; col <= pzGroupEnd; col++) {
+              const h1 = String(headerRow1[col] || '').trim().toLowerCase();
+              const h2 = String(headerRow2[col] || '').trim().toLowerCase();
+              const combined = h1 + ' ' + h2;
+
+              if (combined.includes('итого') && combined.includes('работ') && combined.includes('за ед')) {
+                colMap.pzLabor = col;
+              } else if (combined.includes('итого') && combined.includes('материал') && combined.includes('за ед')) {
+                colMap.pzMaterial = col;
+              } else if ((combined.includes('итого') && combined.includes('за единицу')) ||
+                         (h2.includes('итого') && !h2.includes('работ') && !h2.includes('материал') && col > colMap.pzMaterial)) {
+                if (colMap.pzTotal < 0) colMap.pzTotal = col;
+              }
+            }
+
+            // Fallback: if we only found "Итого" columns without specifics, use position-based detection
+            if (colMap.pzLabor < 0 || colMap.pzMaterial < 0 || colMap.pzTotal < 0) {
+              const itogoColumns: number[] = [];
+              for (let col = pzGroupStart; col <= pzGroupEnd; col++) {
+                const h2 = String(headerRow2[col] || '').trim().toLowerCase();
+                if (h2.includes('итого')) {
+                  itogoColumns.push(col);
+                }
+              }
+              // Last 3 "Итого" columns in PZ group are: работ, материал, total
+              if (itogoColumns.length >= 3) {
+                colMap.pzLabor = itogoColumns[itogoColumns.length - 3];
+                colMap.pzMaterial = itogoColumns[itogoColumns.length - 2];
+                colMap.pzTotal = itogoColumns[itogoColumns.length - 1];
+              }
+            }
+          }
+
+          // Find specific sub-columns within Коммерческие Затраты group
+          if (kzGroupStart >= 0 && kzGroupEnd >= 0) {
+            for (let col = kzGroupStart; col <= kzGroupEnd; col++) {
+              const h1 = String(headerRow1[col] || '').trim().toLowerCase();
+              const h2 = String(headerRow2[col] || '').trim().toLowerCase();
+              const combined = h1 + ' ' + h2;
+
+              if (combined.includes('итого') && combined.includes('работ') && combined.includes('за ед')) {
+                colMap.kzLabor = col;
+              } else if (combined.includes('итого') && combined.includes('материал') && combined.includes('за ед')) {
+                colMap.kzMaterial = col;
+              } else if ((combined.includes('итого') && combined.includes('за единицу')) ||
+                         (h2.includes('итого') && !h2.includes('работ') && !h2.includes('материал') && col > colMap.kzMaterial)) {
+                if (colMap.kzTotal < 0) colMap.kzTotal = col;
+              }
+            }
+
+            // Fallback: position-based detection for KZ group
+            if (colMap.kzLabor < 0 || colMap.kzMaterial < 0 || colMap.kzTotal < 0) {
+              const itogoColumns: number[] = [];
+              for (let col = kzGroupStart; col <= kzGroupEnd; col++) {
+                const h2 = String(headerRow2[col] || '').trim().toLowerCase();
+                if (h2.includes('итого')) {
+                  itogoColumns.push(col);
+                }
+              }
+              if (itogoColumns.length >= 3) {
+                colMap.kzLabor = itogoColumns[itogoColumns.length - 3];
+                colMap.kzMaterial = itogoColumns[itogoColumns.length - 2];
+                colMap.kzTotal = itogoColumns[itogoColumns.length - 1];
+              }
+            }
+          }
+
+          // Final fallback: if column detection failed, use simple positional mapping
+          // This handles simpler Excel formats with fewer columns
+          if (colMap.volume < 0) colMap.volume = 2;
+          if (colMap.unit < 0) colMap.unit = 3;
+
+          // Log column mapping for debugging (remove in production)
+          console.log('Column mapping detected:', colMap);
+
           const projectName = file.name.replace(/\.(xlsx?|csv)$/i, '').replace(/[_-]/g, ' ');
           const sections: TenderSection[] = [];
           let currentSection: TenderSection | null = null;
-
-          // Fixed column positions for Moscow tender format
-          // A(0)=Name, B(1)=Volume, C(2)=Unit, D(3)=PZ Labor, E(4)=PZ Material, F(5)=PZ Total
-          // G(6)=KZ Labor, H(7)=KZ Material, I(8)=KZ Total, J(9)=Total/GBA
 
           for (let i = dataStartRow; i < jsonData.length; i++) {
             const row = jsonData[i];
             if (!row || row.length === 0) continue;
 
-            const name = String(row[0] || '').trim();
+            const name = String(row[colMap.name] || '').trim();
             if (!name || name.length < 2) continue;
 
-            // Skip header rows
-            if (name.toLowerCase().includes('затрата тендера')) continue;
-            if (name.toLowerCase().includes('прямые затраты')) continue;
-            if (name.toLowerCase().includes('коммерческие затраты')) continue;
+            // Skip header rows that might appear in data
+            const nameLower = name.toLowerCase();
+            if (nameLower.includes('затрата тендера')) continue;
+            if (nameLower.includes('прямые затраты')) continue;
+            if (nameLower.includes('коммерческие затраты')) continue;
 
-            const volume = parseNumericValue(row[1]);
-            const unit = String(row[2] || '');
-            const pzLabor = parseNumericValue(row[3]);
-            const pzMaterial = parseNumericValue(row[4]);
-            const pzTotal = parseNumericValue(row[5]);
-            const kzLabor = parseNumericValue(row[6]);
-            const kzMaterial = parseNumericValue(row[7]);
-            const kzTotal = parseNumericValue(row[8]);
-            const totalPerGBA = parseNumericValue(row[9]);
+            // Extract values using detected column positions
+            const volume = colMap.volume >= 0 ? parseNumericValue(row[colMap.volume]) : 0;
+            const unit = colMap.unit >= 0 ? String(row[colMap.unit] || '') : '';
+            const pzLabor = colMap.pzLabor >= 0 ? parseNumericValue(row[colMap.pzLabor]) : 0;
+            const pzMaterial = colMap.pzMaterial >= 0 ? parseNumericValue(row[colMap.pzMaterial]) : 0;
+            const pzTotal = colMap.pzTotal >= 0 ? parseNumericValue(row[colMap.pzTotal]) : 0;
+            const kzLabor = colMap.kzLabor >= 0 ? parseNumericValue(row[colMap.kzLabor]) : 0;
+            const kzMaterial = colMap.kzMaterial >= 0 ? parseNumericValue(row[colMap.kzMaterial]) : 0;
+            const kzTotal = colMap.kzTotal >= 0 ? parseNumericValue(row[colMap.kzTotal]) : 0;
+            const totalPerGBA = colMap.totalPerGBA >= 0 ? parseNumericValue(row[colMap.totalPerGBA]) : 0;
 
             // Check if this is a main section (XX. NAME) or sub-item (XX.XX. NAME)
             const isSectionHeader = /^\d{2}\.\s+[А-ЯЁA-Z]/.test(name) && !/^\d{2}\.\d{2}\./.test(name);
