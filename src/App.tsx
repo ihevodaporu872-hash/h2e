@@ -389,7 +389,10 @@ function App() {
   const [tenderProjects, setTenderProjects] = useState<TenderProject[]>([]);
 
   // Analytics page state
+  const [analyticsCompareMode, setAnalyticsCompareMode] = useState<'projects' | 'versions'>('projects');
   const [analyticsSelectedProjects, setAnalyticsSelectedProjects] = useState<string[]>([]);
+  const [analyticsSelectedProjectForVersions, setAnalyticsSelectedProjectForVersions] = useState<string>('');
+  const [analyticsSelectedFiles, setAnalyticsSelectedFiles] = useState<string[]>([]);
   const [analyticsSelectedWorkType, setAnalyticsSelectedWorkType] = useState<string>('');
   const [analyticsCostType, setAnalyticsCostType] = useState<'pzTotal' | 'kzTotal' | 'totalPerGBA'>('pzTotal');
 
@@ -2396,75 +2399,139 @@ function App() {
           </div>
         );
       case 'analytics':
-        // Get all unique work types (Вид работ) from selected projects
-        const getWorkTypesFromProjects = () => {
+        // Get the selected project for version comparison
+        const selectedProjectForVersions = tenderProjects.find(p => p.id === analyticsSelectedProjectForVersions);
+
+        // Get all unique work types based on compare mode
+        const getWorkTypesFromSelection = () => {
           const workTypes = new Set<string>();
-          tenderProjects
-            .filter(p => analyticsSelectedProjects.includes(p.id))
-            .forEach(project => {
-              project.files.forEach(file => {
-                file.sections.forEach(section => {
-                  section.rows.forEach(row => {
-                    if (row.name && row.name.trim()) {
-                      workTypes.add(row.name.trim());
-                    }
+
+          if (analyticsCompareMode === 'projects') {
+            // Get work types from selected projects
+            tenderProjects
+              .filter(p => analyticsSelectedProjects.includes(p.id))
+              .forEach(project => {
+                project.files.forEach(file => {
+                  file.sections.forEach(section => {
+                    section.rows.forEach(row => {
+                      if (row.name && row.name.trim()) {
+                        workTypes.add(row.name.trim());
+                      }
+                    });
                   });
                 });
               });
-            });
+          } else {
+            // Get work types from selected files within the project
+            if (selectedProjectForVersions) {
+              selectedProjectForVersions.files
+                .filter(f => analyticsSelectedFiles.includes(f.id))
+                .forEach(file => {
+                  file.sections.forEach(section => {
+                    section.rows.forEach(row => {
+                      if (row.name && row.name.trim()) {
+                        workTypes.add(row.name.trim());
+                      }
+                    });
+                  });
+                });
+            }
+          }
+
           return Array.from(workTypes).sort();
         };
 
-        // Get comparison data for the selected work type
-        const getComparisonData = () => {
-          if (!analyticsSelectedWorkType || analyticsSelectedProjects.length === 0) return [];
+        // Get comparison data based on mode
+        const getComparisonDataByMode = () => {
+          if (!analyticsSelectedWorkType) return [];
 
-          return tenderProjects
-            .filter(p => analyticsSelectedProjects.includes(p.id))
-            .map(project => {
-              // Find the work type in the project's files
-              let foundRow: TenderRow | null = null;
-              let foundFile: TenderFile | null = null;
+          if (analyticsCompareMode === 'projects') {
+            // Compare across different projects
+            if (analyticsSelectedProjects.length < 2) return [];
 
-              for (const file of project.files) {
+            return tenderProjects
+              .filter(p => analyticsSelectedProjects.includes(p.id))
+              .map(project => {
+                let foundRow: TenderRow | null = null;
+                let foundFile: TenderFile | null = null;
+
+                for (const file of project.files) {
+                  for (const section of file.sections) {
+                    const row = section.rows.find(r => r.name.trim() === analyticsSelectedWorkType);
+                    if (row) {
+                      foundRow = row;
+                      foundFile = file;
+                      break;
+                    }
+                  }
+                  if (foundRow) break;
+                }
+
+                return {
+                  id: project.id,
+                  label: project.name,
+                  fileName: foundFile?.name || '-',
+                  calculationDate: foundFile?.calculationDate || '-',
+                  value: foundRow ? (
+                    analyticsCostType === 'pzTotal' ? foundRow.pzTotal :
+                    analyticsCostType === 'kzTotal' ? foundRow.kzTotal :
+                    foundRow.totalPerGBA
+                  ) : null,
+                };
+              });
+          } else {
+            // Compare versions (files) within the same project
+            if (!selectedProjectForVersions || analyticsSelectedFiles.length < 2) return [];
+
+            return selectedProjectForVersions.files
+              .filter(f => analyticsSelectedFiles.includes(f.id))
+              .map(file => {
+                let foundRow: TenderRow | null = null;
+
                 for (const section of file.sections) {
                   const row = section.rows.find(r => r.name.trim() === analyticsSelectedWorkType);
                   if (row) {
                     foundRow = row;
-                    foundFile = file;
                     break;
                   }
                 }
-                if (foundRow) break;
-              }
 
-              return {
-                projectId: project.id,
-                projectName: project.name,
-                fileName: foundFile?.name || '-',
-                calculationDate: foundFile?.calculationDate || '-',
-                value: foundRow ? (
-                  analyticsCostType === 'pzTotal' ? foundRow.pzTotal :
-                  analyticsCostType === 'kzTotal' ? foundRow.kzTotal :
-                  foundRow.totalPerGBA
-                ) : null,
-                row: foundRow,
-              };
-            });
+                return {
+                  id: file.id,
+                  label: file.name,
+                  fileName: file.name,
+                  calculationDate: file.calculationDate || '-',
+                  value: foundRow ? (
+                    analyticsCostType === 'pzTotal' ? foundRow.pzTotal :
+                    analyticsCostType === 'kzTotal' ? foundRow.kzTotal :
+                    foundRow.totalPerGBA
+                  ) : null,
+                };
+              });
+          }
         };
 
-        const availableWorkTypes = getWorkTypesFromProjects();
-        const comparisonData = getComparisonData();
+        const availableWorkTypes = getWorkTypesFromSelection();
+        const comparisonData = getComparisonDataByMode();
         const costTypeLabels = {
           pzTotal: 'Прямые Затраты (Итого за единицу)',
           kzTotal: 'Коммерческие Затраты (Итого за единицу)',
           totalPerGBA: 'Итого за ед. общей площади',
         };
 
+        // Check if enough items are selected for comparison
+        const hasEnoughSelection = analyticsCompareMode === 'projects'
+          ? analyticsSelectedProjects.length >= 2
+          : analyticsSelectedFiles.length >= 2;
+
+        const selectionCount = analyticsCompareMode === 'projects'
+          ? analyticsSelectedProjects.length
+          : analyticsSelectedFiles.length;
+
         return (
           <div className="page-content">
             <h1>Аналитика</h1>
-            <p className="page-description">Сравнительный анализ тендерных проектов</p>
+            <p className="page-description">Сравнительный анализ тендерных проектов и версий</p>
 
             {tenderProjects.length === 0 ? (
               <div className="placeholder-content">
@@ -2476,38 +2543,155 @@ function App() {
               </div>
             ) : (
               <div className="analytics-container">
-                {/* Step 1: Select Projects */}
+                {/* Step 1: Select Comparison Mode */}
                 <div className="analytics-section">
-                  <h3>1. Выберите тендерные проекты для сравнения</h3>
-                  <div className="project-checkboxes">
-                    {tenderProjects.map(project => (
-                      <label key={project.id} className="project-checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={analyticsSelectedProjects.includes(project.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setAnalyticsSelectedProjects(prev => [...prev, project.id]);
-                            } else {
-                              setAnalyticsSelectedProjects(prev => prev.filter(id => id !== project.id));
-                              // Reset work type if no projects selected
-                              if (analyticsSelectedProjects.length <= 1) {
-                                setAnalyticsSelectedWorkType('');
-                              }
-                            }
-                          }}
-                        />
-                        <span>{project.name}</span>
-                        <span className="file-count">({project.files.length} файл(ов))</span>
-                      </label>
-                    ))}
+                  <h3>1. Выберите режим сравнения</h3>
+                  <div className="compare-mode-selector">
+                    <label className={`mode-option ${analyticsCompareMode === 'projects' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="compareMode"
+                        value="projects"
+                        checked={analyticsCompareMode === 'projects'}
+                        onChange={() => {
+                          setAnalyticsCompareMode('projects');
+                          setAnalyticsSelectedWorkType('');
+                          setAnalyticsSelectedFiles([]);
+                          setAnalyticsSelectedProjectForVersions('');
+                        }}
+                      />
+                      <span className="mode-icon">📊</span>
+                      <span className="mode-label">Между проектами</span>
+                      <span className="mode-desc">Сравнение разных тендерных проектов</span>
+                    </label>
+                    <label className={`mode-option ${analyticsCompareMode === 'versions' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="compareMode"
+                        value="versions"
+                        checked={analyticsCompareMode === 'versions'}
+                        onChange={() => {
+                          setAnalyticsCompareMode('versions');
+                          setAnalyticsSelectedWorkType('');
+                          setAnalyticsSelectedProjects([]);
+                        }}
+                      />
+                      <span className="mode-icon">📑</span>
+                      <span className="mode-label">Между версиями</span>
+                      <span className="mode-desc">Сравнение файлов одного проекта по датам</span>
+                    </label>
                   </div>
                 </div>
 
-                {/* Step 2: Select Work Type */}
-                {analyticsSelectedProjects.length > 0 && (
+                {/* Step 2: Select Items to Compare */}
+                <div className="analytics-section">
+                  <h3>2. {analyticsCompareMode === 'projects' ? 'Выберите тендерные проекты' : 'Выберите проект и версии'} для сравнения</h3>
+                  <p className="selection-hint">Минимум 2, максимум 5 {analyticsCompareMode === 'projects' ? 'проектов' : 'версий'}</p>
+
+                  {analyticsCompareMode === 'projects' ? (
+                    // Project selection
+                    <div className="project-checkboxes">
+                      {tenderProjects.map(project => {
+                        const isSelected = analyticsSelectedProjects.includes(project.id);
+                        const isDisabled = !isSelected && analyticsSelectedProjects.length >= 5;
+                        return (
+                          <label key={project.id} className={`project-checkbox-label ${isDisabled ? 'disabled' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={isDisabled}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setAnalyticsSelectedProjects(prev => [...prev, project.id]);
+                                } else {
+                                  setAnalyticsSelectedProjects(prev => prev.filter(id => id !== project.id));
+                                  if (analyticsSelectedProjects.length <= 2) {
+                                    setAnalyticsSelectedWorkType('');
+                                  }
+                                }
+                              }}
+                            />
+                            <span>{project.name}</span>
+                            <span className="file-count">({project.files.length} файл(ов))</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // Version (file) selection within a project
+                    <div className="version-selection">
+                      {/* First select project */}
+                      <div className="project-selector-wrapper">
+                        <label className="selector-label">Тендерный проект:</label>
+                        <select
+                          className="analytics-select"
+                          value={analyticsSelectedProjectForVersions}
+                          onChange={(e) => {
+                            setAnalyticsSelectedProjectForVersions(e.target.value);
+                            setAnalyticsSelectedFiles([]);
+                            setAnalyticsSelectedWorkType('');
+                          }}
+                        >
+                          <option value="">-- Выберите проект --</option>
+                          {tenderProjects.filter(p => p.files.length >= 2).map(project => (
+                            <option key={project.id} value={project.id}>
+                              {project.name} ({project.files.length} файлов)
+                            </option>
+                          ))}
+                        </select>
+                        {tenderProjects.every(p => p.files.length < 2) && (
+                          <p className="no-versions-hint">
+                            Для сравнения версий загрузите минимум 2 файла в один проект
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Then select files/versions */}
+                      {selectedProjectForVersions && selectedProjectForVersions.files.length >= 2 && (
+                        <div className="file-checkboxes">
+                          <label className="selector-label">Выберите версии (файлы):</label>
+                          {selectedProjectForVersions.files.map(file => {
+                            const isSelected = analyticsSelectedFiles.includes(file.id);
+                            const isDisabled = !isSelected && analyticsSelectedFiles.length >= 5;
+                            return (
+                              <label key={file.id} className={`project-checkbox-label ${isDisabled ? 'disabled' : ''}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  disabled={isDisabled}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setAnalyticsSelectedFiles(prev => [...prev, file.id]);
+                                    } else {
+                                      setAnalyticsSelectedFiles(prev => prev.filter(id => id !== file.id));
+                                      if (analyticsSelectedFiles.length <= 2) {
+                                        setAnalyticsSelectedWorkType('');
+                                      }
+                                    }
+                                  }}
+                                />
+                                <span className="file-name">{file.name}</span>
+                                <span className="file-date">📅 {file.calculationDate}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Selection counter */}
+                  <div className={`selection-counter ${selectionCount < 2 ? 'insufficient' : selectionCount >= 5 ? 'max' : 'ok'}`}>
+                    Выбрано: {selectionCount} / 5
+                    {selectionCount < 2 && <span className="counter-hint"> (выберите ещё {2 - selectionCount})</span>}
+                    {selectionCount >= 5 && <span className="counter-hint"> (максимум)</span>}
+                  </div>
+                </div>
+
+                {/* Step 3: Select Work Type */}
+                {hasEnoughSelection && (
                   <div className="analytics-section">
-                    <h3>2. Выберите Вид работ для сравнения</h3>
+                    <h3>3. Выберите Вид работ для сравнения</h3>
                     <select
                       className="analytics-select"
                       value={analyticsSelectedWorkType}
@@ -2515,16 +2699,12 @@ function App() {
                     >
                       <option value="">-- Выберите вид работ --</option>
                       {availableWorkTypes.map(workType => {
-                        // Main items: "01.", "02.", etc. (2 digits + period + space + uppercase letter)
-                        // Sub-items: "01.01.", "01.02.", etc. (contains two periods)
                         const isMainItem = /^\d{2}\.\s+[A-ZА-ЯЁ]/.test(workType);
                         return (
                           <option
                             key={workType}
                             value={workType}
-                            style={{
-                              fontWeight: isMainItem ? 'bold' : 'normal',
-                            }}
+                            style={{ fontWeight: isMainItem ? 'bold' : 'normal' }}
                           >
                             {isMainItem ? `■ ${workType}` : `    └ ${workType}`}
                           </option>
@@ -2534,10 +2714,10 @@ function App() {
                   </div>
                 )}
 
-                {/* Step 3: Select Cost Type */}
+                {/* Step 4: Select Cost Type */}
                 {analyticsSelectedWorkType && (
                   <div className="analytics-section">
-                    <h3>3. Выберите показатель для сравнения</h3>
+                    <h3>4. Выберите показатель для сравнения</h3>
                     <select
                       className="analytics-select"
                       value={analyticsCostType}
@@ -2551,10 +2731,11 @@ function App() {
                 )}
 
                 {/* Comparison Results */}
-                {analyticsSelectedWorkType && comparisonData.length > 0 && (
+                {analyticsSelectedWorkType && comparisonData.length >= 2 && (
                   <div className="analytics-section">
                     <h3>Результаты сравнения</h3>
                     <div className="comparison-header">
+                      <strong>Режим:</strong> {analyticsCompareMode === 'projects' ? 'Между проектами' : `Версии проекта "${selectedProjectForVersions?.name}"`}<br/>
                       <strong>Вид работ:</strong> {analyticsSelectedWorkType}<br/>
                       <strong>Показатель:</strong> {costTypeLabels[analyticsCostType]}
                     </div>
@@ -2562,23 +2743,46 @@ function App() {
                     <table className="comparison-table">
                       <thead>
                         <tr>
-                          <th>Тендерный проект</th>
-                          <th>Файл</th>
+                          <th>{analyticsCompareMode === 'projects' ? 'Тендерный проект' : 'Версия (файл)'}</th>
                           <th>Дата расчетов</th>
                           <th>{costTypeLabels[analyticsCostType]}</th>
+                          <th>Разница</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {comparisonData.map((data, index) => (
-                          <tr key={data.projectId} className={index === 0 ? 'first-row' : ''}>
-                            <td>{data.projectName}</td>
-                            <td>{data.fileName}</td>
-                            <td>{data.calculationDate}</td>
-                            <td className={`value-cell ${data.value === null ? 'no-data' : ''}`}>
-                              {data.value !== null ? data.value.toLocaleString('ru-RU') : 'Нет данных'}
-                            </td>
-                          </tr>
-                        ))}
+                        {comparisonData.map((data, index) => {
+                          const firstValue = comparisonData[0]?.value;
+                          const diff = data.value !== null && firstValue !== null && index > 0
+                            ? data.value - firstValue
+                            : null;
+                          const diffPercent = diff !== null && firstValue !== null && firstValue !== 0
+                            ? (diff / firstValue) * 100
+                            : null;
+
+                          return (
+                            <tr key={data.id} className={index === 0 ? 'first-row' : ''}>
+                              <td>{data.label}</td>
+                              <td>{data.calculationDate}</td>
+                              <td className={`value-cell ${data.value === null ? 'no-data' : ''}`}>
+                                {data.value !== null ? data.value.toLocaleString('ru-RU') : 'Нет данных'}
+                              </td>
+                              <td className={`diff-cell ${diff === null ? '' : diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral'}`}>
+                                {index === 0 ? (
+                                  <span className="baseline-label">базовый</span>
+                                ) : diff !== null ? (
+                                  <>
+                                    {diff > 0 ? '+' : ''}{diff.toLocaleString('ru-RU')}
+                                    {diffPercent !== null && (
+                                      <span className="diff-percent">
+                                        ({diff > 0 ? '+' : ''}{diffPercent.toFixed(1)}%)
+                                      </span>
+                                    )}
+                                  </>
+                                ) : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
 
@@ -2589,14 +2793,14 @@ function App() {
                         {(() => {
                           const maxValue = Math.max(...comparisonData.filter(d => d.value !== null).map(d => d.value!));
                           return comparisonData.map((data, index) => (
-                            <div key={data.projectId} className="chart-bar-container">
-                              <div className="chart-label">{data.projectName}</div>
+                            <div key={data.id} className="chart-bar-container">
+                              <div className="chart-label">{data.label}</div>
                               <div className="chart-bar-wrapper">
                                 <div
                                   className="chart-bar"
                                   style={{
                                     width: data.value !== null ? `${(data.value / maxValue) * 100}%` : '0%',
-                                    backgroundColor: `hsl(${index * 60}, 70%, 50%)`,
+                                    backgroundColor: `hsl(${index * 50}, 70%, 50%)`,
                                   }}
                                 />
                                 <span className="chart-value">
