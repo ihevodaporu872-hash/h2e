@@ -1757,7 +1757,7 @@ function App() {
               <button
                 className="btn-primary"
                 onClick={confirmImport}
-                disabled={pendingTenderProject && !fileCalculationDate}
+                disabled={!!pendingTenderProject && !fileCalculationDate}
                 style={{ opacity: (pendingTenderProject && !fileCalculationDate) ? 0.5 : 1 }}
               >
                 {pendingTenderProject && !fileCalculationDate
