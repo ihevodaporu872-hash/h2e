@@ -1590,18 +1590,27 @@ function App() {
                       }
                     </p>
 
-                    {/* Date input for calculations */}
+                    {/* Date input for calculations - REQUIRED */}
                     <div className="calculation-date-input" style={{ marginTop: '1rem' }}>
                       <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.875rem' }}>
-                        📅 Расчеты по дате изменения:
+                        📅 Расчеты по дате изменения: <span style={{ color: '#ef4444' }}>*</span>
                       </label>
                       <input
                         type="date"
                         className="project-name-input"
                         value={fileCalculationDate}
                         onChange={(e) => setFileCalculationDate(e.target.value)}
-                        style={{ width: '200px' }}
+                        required
+                        style={{
+                          width: '200px',
+                          borderColor: !fileCalculationDate ? '#ef4444' : undefined,
+                        }}
                       />
+                      {!fileCalculationDate && (
+                        <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                          Обязательное поле
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1744,9 +1753,17 @@ function App() {
             <button className="btn-secondary" onClick={resetUploadModal}>
               Отмена
             </button>
-            {uploadProgress === 'success' && itemsToImport.length > 0 && (
-              <button className="btn-primary" onClick={confirmImport}>
-                Импортировать ({itemsToImport.length})
+            {uploadProgress === 'success' && (pendingTenderProject || itemsToImport.length > 0) && (
+              <button
+                className="btn-primary"
+                onClick={confirmImport}
+                disabled={pendingTenderProject && !fileCalculationDate}
+                style={{ opacity: (pendingTenderProject && !fileCalculationDate) ? 0.5 : 1 }}
+              >
+                {pendingTenderProject && !fileCalculationDate
+                  ? 'Укажите дату расчетов'
+                  : `Импортировать`
+                }
               </button>
             )}
           </div>
