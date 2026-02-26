@@ -401,6 +401,11 @@ function App() {
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editedWorkItems, setEditedWorkItems] = useState<WorkItem[]>([]);
 
+  // Tender project selection for upload
+  const [selectedTenderProjectId, setSelectedTenderProjectId] = useState<string>('new');
+  const [newTenderProjectName, setNewTenderProjectName] = useState<string>('');
+  const [pendingTenderProject, setPendingTenderProject] = useState<TenderProject | null>(null);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
@@ -1158,17 +1163,15 @@ function App() {
       setEditedWorkItems(project.workItems);
       setExcludedRowIds(new Set());
 
-      // Add tender project to state immediately (for Indicators page display)
+      // Store tender project for later - let user select/create tender project name first
       if (tenderProject.sections.length > 0) {
-        setTenderProjects((prev) => [...prev, tenderProject]);
+        setPendingTenderProject(tenderProject);
+        setNewTenderProjectName(tenderProject.name); // Default to file name
+        setSelectedTenderProjectId('new'); // Default to creating new project
       }
 
       setImportStep('preview');
       setUploadProgress('success');
-
-      // Auto-navigate to Indicators page after successful import
-      setActiveNav('indicators');
-      setShowUploadModal(false);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Ошибка парсинга файла');
       setUploadProgress('error');
@@ -1237,35 +1240,73 @@ function App() {
   // Confirm import
   const confirmImport = () => {
     const itemsToImport = getItemsToImport();
-    if (itemsToImport.length === 0) return;
 
-    const projectToImport: Project = {
-      id: `imported-${Date.now()}`,
-      name: editableProjectName || parsedPreview?.name || 'Импортированный проект',
-      code: parsedPreview?.code || `IMP-${Date.now().toString(36).toUpperCase()}`,
-      address: parsedPreview?.address || 'Импортировано из Excel',
-      totalArea: itemsToImport.reduce((sum, item) => sum + item.area, 0) || 10000,
-      workItems: itemsToImport,
-      expanded: true,
-    };
+    // Handle tender project import (for Основные показатели)
+    if (pendingTenderProject) {
+      const projectName = newTenderProjectName.trim() || pendingTenderProject.name;
 
-    if (selectedTargetProject === 'new') {
-      setProjects(prev => [projectToImport, ...prev]);
-    } else {
-      setProjects(prev => prev.map(project => {
-        if (project.id === selectedTargetProject) {
-          const newWorkItems = itemsToImport.map((item, idx) => ({
-            ...item,
-            id: `${project.id}-imported-${Date.now()}-${idx}`,
-          }));
-          return {
-            ...project,
-            workItems: [...project.workItems, ...newWorkItems],
-            totalArea: project.totalArea + projectToImport.totalArea,
-          };
-        }
-        return project;
-      }));
+      if (selectedTenderProjectId === 'new') {
+        // Create new tender project with user-provided name
+        const newProject: TenderProject = {
+          ...pendingTenderProject,
+          id: `tender-${Date.now()}`,
+          name: projectName,
+          code: `IMP-${Date.now().toString(36).toUpperCase()}`,
+        };
+        setTenderProjects(prev => [...prev, newProject]);
+      } else {
+        // Add sections to existing tender project
+        setTenderProjects(prev => prev.map(project => {
+          if (project.id === selectedTenderProjectId) {
+            // Append sections from the new file to existing project
+            const newSections = pendingTenderProject.sections.map((section, idx) => ({
+              ...section,
+              id: `${project.id}-section-${Date.now()}-${idx}`,
+              rows: section.rows.map((row, ridx) => ({
+                ...row,
+                id: `${project.id}-row-${Date.now()}-${idx}-${ridx}`,
+              })),
+            }));
+            return {
+              ...project,
+              sections: [...project.sections, ...newSections],
+            };
+          }
+          return project;
+        }));
+      }
+    }
+
+    // Handle legacy project import
+    if (itemsToImport.length > 0) {
+      const projectToImport: Project = {
+        id: `imported-${Date.now()}`,
+        name: editableProjectName || parsedPreview?.name || 'Импортированный проект',
+        code: parsedPreview?.code || `IMP-${Date.now().toString(36).toUpperCase()}`,
+        address: parsedPreview?.address || 'Импортировано из Excel',
+        totalArea: itemsToImport.reduce((sum, item) => sum + item.area, 0) || 10000,
+        workItems: itemsToImport,
+        expanded: true,
+      };
+
+      if (selectedTargetProject === 'new') {
+        setProjects(prev => [projectToImport, ...prev]);
+      } else {
+        setProjects(prev => prev.map(project => {
+          if (project.id === selectedTargetProject) {
+            const newWorkItems = itemsToImport.map((item, idx) => ({
+              ...item,
+              id: `${project.id}-imported-${Date.now()}-${idx}`,
+            }));
+            return {
+              ...project,
+              workItems: [...project.workItems, ...newWorkItems],
+              totalArea: project.totalArea + projectToImport.totalArea,
+            };
+          }
+          return project;
+        }));
+      }
     }
 
     resetUploadModal();
@@ -1287,6 +1328,10 @@ function App() {
     setShowAllPreviewRows(false);
     setEditingRowId(null);
     setDetectedColumns({});
+    // Reset tender project selection
+    setSelectedTenderProjectId('new');
+    setNewTenderProjectName('');
+    setPendingTenderProject(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -1474,8 +1519,43 @@ function App() {
                   </div>
                 )}
 
-                {/* Target Project Selector */}
-                <div className="target-project-selector">
+                {/* Tender Project Selector for Основные показатели */}
+                {pendingTenderProject && (
+                  <div className="target-project-selector tender-project-selector">
+                    <h4>📊 Тендерный проект (Основные показатели):</h4>
+                    <select
+                      className="project-select"
+                      value={selectedTenderProjectId}
+                      onChange={(e) => setSelectedTenderProjectId(e.target.value)}
+                    >
+                      <option value="new">+ Создать новый тендерный проект</option>
+                      {tenderProjects.map(project => (
+                        <option key={project.id} value={project.id}>
+                          {project.name} ({project.code})
+                        </option>
+                      ))}
+                    </select>
+                    {selectedTenderProjectId === 'new' && (
+                      <input
+                        type="text"
+                        className="project-name-input"
+                        style={{ marginTop: '0.5rem' }}
+                        value={newTenderProjectName}
+                        onChange={(e) => setNewTenderProjectName(e.target.value)}
+                        placeholder="Название тендерного проекта"
+                      />
+                    )}
+                    <p className="selector-hint">
+                      {selectedTenderProjectId === 'new'
+                        ? 'Будет создан новый тендерный проект с указанным названием'
+                        : `Данные будут добавлены в существующий проект "${tenderProjects.find(p => p.id === selectedTenderProjectId)?.name}"`
+                      }
+                    </p>
+                  </div>
+                )}
+
+                {/* Target Project Selector (Legacy) */}
+                <div className="target-project-selector" style={{ display: 'none' }}>
                   <h4>Привязать к проекту:</h4>
                   <select
                     className="project-select"
