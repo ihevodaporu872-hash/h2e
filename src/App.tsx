@@ -111,6 +111,7 @@ interface TenderFile {
   id: string;
   name: string;           // File name (e.g., "Затраты_Поликлиника_v2_Прямые_25-02-2026")
   uploadedAt: string;     // Upload timestamp
+  calculationDate: string; // User-specified date "Расчеты по дате изменения"
   sections: TenderSection[];
   expanded: boolean;
 }
@@ -413,6 +414,7 @@ function App() {
   const [selectedTenderProjectId, setSelectedTenderProjectId] = useState<string>('new');
   const [newTenderProjectName, setNewTenderProjectName] = useState<string>('');
   const [pendingTenderProject, setPendingTenderProject] = useState<TenderProject | null>(null);
+  const [fileCalculationDate, setFileCalculationDate] = useState<string>(''); // "Расчеты по дате изменения"
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -1283,6 +1285,7 @@ function App() {
         id: `file-${Date.now()}`,
         name: fileName,
         uploadedAt: new Date().toISOString(),
+        calculationDate: fileCalculationDate || new Date().toISOString().split('T')[0], // Use today if not specified
         sections: parsedData.sections,
         expanded: true,
       };
@@ -1366,6 +1369,7 @@ function App() {
     setSelectedTenderProjectId('new');
     setNewTenderProjectName('');
     setPendingTenderProject(null);
+    setFileCalculationDate('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -1585,6 +1589,20 @@ function App() {
                         : `Данные будут добавлены в существующий проект "${tenderProjects.find(p => p.id === selectedTenderProjectId)?.name}"`
                       }
                     </p>
+
+                    {/* Date input for calculations */}
+                    <div className="calculation-date-input" style={{ marginTop: '1rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.875rem' }}>
+                        📅 Расчеты по дате изменения:
+                      </label>
+                      <input
+                        type="date"
+                        className="project-name-input"
+                        value={fileCalculationDate}
+                        onChange={(e) => setFileCalculationDate(e.target.value)}
+                        style={{ width: '200px' }}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -2050,7 +2068,9 @@ function App() {
                           <div className="file-expand">{file.expanded ? '▼' : '▶'}</div>
                           <div className="file-info">
                             <span className="file-name">📄 {file.name}</span>
-                            <span className="file-date">{new Date(file.uploadedAt).toLocaleDateString('ru-RU')}</span>
+                            <span className="file-date">
+                              Расчеты по дате: {new Date(file.calculationDate).toLocaleDateString('ru-RU')}
+                            </span>
                           </div>
                           <div className="file-stats">
                             <span className="file-stat">ПЗ: {formatNumber(fileTotals.pzTotal)}</span>
