@@ -1632,14 +1632,22 @@ function App() {
                       ))}
                     </select>
                     {selectedTenderProjectId === 'new' && (
-                      <input
-                        type="text"
-                        className="project-name-input"
-                        style={{ marginTop: '0.5rem' }}
-                        value={newTenderProjectName}
-                        onChange={(e) => setNewTenderProjectName(e.target.value)}
-                        placeholder="Название тендерного проекта"
-                      />
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, fontSize: '0.875rem' }}>
+                          Название тендерного проекта: <span style={{ color: '#ef4444' }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="project-name-input"
+                          value={newTenderProjectName}
+                          onChange={(e) => setNewTenderProjectName(e.target.value)}
+                          placeholder="Например: 305. Поликлиника (ASTERUS)"
+                          required
+                          style={{
+                            borderColor: !newTenderProjectName.trim() ? '#ef4444' : undefined,
+                          }}
+                        />
+                      </div>
                     )}
                     <p className="selector-hint">
                       {selectedTenderProjectId === 'new'
@@ -1815,12 +1823,14 @@ function App() {
               <button
                 className="btn-primary"
                 onClick={confirmImport}
-                disabled={!!pendingTenderProject && !fileCalculationDate}
-                style={{ opacity: (pendingTenderProject && !fileCalculationDate) ? 0.5 : 1 }}
+                disabled={!!pendingTenderProject && (!fileCalculationDate || (selectedTenderProjectId === 'new' && !newTenderProjectName.trim()))}
+                style={{ opacity: (pendingTenderProject && (!fileCalculationDate || (selectedTenderProjectId === 'new' && !newTenderProjectName.trim()))) ? 0.5 : 1 }}
               >
-                {pendingTenderProject && !fileCalculationDate
-                  ? 'Укажите дату расчетов'
-                  : `Импортировать`
+                {pendingTenderProject && selectedTenderProjectId === 'new' && !newTenderProjectName.trim()
+                  ? 'Укажите название проекта'
+                  : pendingTenderProject && !fileCalculationDate
+                    ? 'Укажите дату расчетов'
+                    : `Импортировать`
                 }
               </button>
             )}
