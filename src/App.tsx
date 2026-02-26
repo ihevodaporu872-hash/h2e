@@ -2704,7 +2704,11 @@ function App() {
                           <option
                             key={workType}
                             value={workType}
-                            style={{ fontWeight: isMainItem ? 'bold' : 'normal' }}
+                            style={{
+                              fontWeight: isMainItem ? 'bold' : 'normal',
+                              color: isMainItem ? '#22d3ee' : 'inherit',
+                              backgroundColor: isMainItem ? 'rgba(34, 211, 238, 0.1)' : 'transparent',
+                            }}
                           >
                             {isMainItem ? `■ ${workType}` : `    └ ${workType}`}
                           </option>
