@@ -2514,9 +2514,22 @@ function App() {
                       onChange={(e) => setAnalyticsSelectedWorkType(e.target.value)}
                     >
                       <option value="">-- Выберите вид работ --</option>
-                      {availableWorkTypes.map(workType => (
-                        <option key={workType} value={workType}>{workType}</option>
-                      ))}
+                      {availableWorkTypes.map(workType => {
+                        // Main items: "01.", "02.", etc. (2 digits + period + space + uppercase letter)
+                        // Sub-items: "01.01.", "01.02.", etc. (contains two periods)
+                        const isMainItem = /^\d{2}\.\s+[A-ZА-ЯЁ]/.test(workType);
+                        return (
+                          <option
+                            key={workType}
+                            value={workType}
+                            style={{
+                              fontWeight: isMainItem ? 'bold' : 'normal',
+                            }}
+                          >
+                            {isMainItem ? `■ ${workType}` : `    └ ${workType}`}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 )}
