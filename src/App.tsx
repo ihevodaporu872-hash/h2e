@@ -487,6 +487,55 @@ function App() {
     );
   };
 
+  // State for editing comments in tender table
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentValue, setEditingCommentValue] = useState<string>('');
+
+  // Update comment/category in tender row
+  const updateTenderRowComment = (projectId: string, fileId: string, rowId: string, newComment: string) => {
+    setTenderProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              files: p.files.map((f) =>
+                f.id === fileId
+                  ? {
+                      ...f,
+                      sections: f.sections.map((s) => ({
+                        ...s,
+                        rows: s.rows.map((r) =>
+                          r.id === rowId ? { ...r, category: newComment } : r
+                        ),
+                      })),
+                    }
+                  : f
+              ),
+            }
+          : p
+      )
+    );
+  };
+
+  // Start editing a comment
+  const startEditingComment = (rowId: string, currentValue: string) => {
+    setEditingCommentId(rowId);
+    setEditingCommentValue(currentValue);
+  };
+
+  // Save the edited comment
+  const saveEditedComment = (projectId: string, fileId: string, rowId: string) => {
+    updateTenderRowComment(projectId, fileId, rowId, editingCommentValue);
+    setEditingCommentId(null);
+    setEditingCommentValue('');
+  };
+
+  // Cancel editing
+  const cancelEditingComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentValue('');
+  };
+
   const formatNumber = (num: number): string => num.toLocaleString('ru-RU');
   const formatCurrency = (num: number): string => num.toLocaleString('ru-RU') + ' ₽';
 
@@ -2170,7 +2219,36 @@ function App() {
                                         .map((row) => (
                                           <tr key={row.id} className="tender-item-row">
                                             <td className="td-name td-subitem">{row.name}</td>
-                                            <td className="td-category">{row.category}</td>
+                                            <td
+                                              className="td-category td-editable"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                startEditingComment(row.id, row.category);
+                                              }}
+                                            >
+                                              {editingCommentId === row.id ? (
+                                                <input
+                                                  type="text"
+                                                  className="comment-edit-input"
+                                                  value={editingCommentValue}
+                                                  onChange={(e) => setEditingCommentValue(e.target.value)}
+                                                  onBlur={() => saveEditedComment(project.id, file.id, row.id)}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                      saveEditedComment(project.id, file.id, row.id);
+                                                    } else if (e.key === 'Escape') {
+                                                      cancelEditingComment();
+                                                    }
+                                                  }}
+                                                  autoFocus
+                                                  onClick={(e) => e.stopPropagation()}
+                                                />
+                                              ) : (
+                                                <span className="editable-text" title="Нажмите для редактирования">
+                                                  {row.category || <em style={{ color: 'var(--text-tertiary)' }}>+ добавить</em>}
+                                                </span>
+                                              )}
+                                            </td>
                                             <td className="td-volume">
                                               {row.volume > 0 ? formatNumber(row.volume) : ''}
                                             </td>

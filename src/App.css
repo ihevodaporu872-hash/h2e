@@ -2399,6 +2399,37 @@ body {
   max-width: 140px;
 }
 
+/* Editable comment cells */
+.td-editable {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.td-editable:hover {
+  background-color: var(--bg-hover);
+}
+
+.editable-text {
+  display: block;
+  min-height: 1.2em;
+}
+
+.comment-edit-input {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.comment-edit-input:focus {
+  border-color: var(--primary);
+}
+
 .th-volume {
   min-width: 80px;
 }
