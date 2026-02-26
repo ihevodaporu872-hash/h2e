@@ -1330,12 +1330,21 @@ function App() {
       const fileName = parsedData.name; // Original file name
 
       // Create the file object from pending tender project
+      // Clear the "Комментарий" (category) column - user will add comments manually
+      const sectionsWithClearedComments = parsedData.sections.map(section => ({
+        ...section,
+        rows: section.rows.map(row => ({
+          ...row,
+          category: '', // Clear comment field on upload - will show "+ добавить" hint
+        })),
+      }));
+
       const newFile: TenderFile = {
         id: `file-${Date.now()}`,
         name: fileName,
         uploadedAt: new Date().toISOString(),
         calculationDate: fileCalculationDate || new Date().toISOString().split('T')[0], // Use today if not specified
-        sections: parsedData.sections,
+        sections: sectionsWithClearedComments,
         expanded: true,
       };
 
