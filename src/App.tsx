@@ -570,19 +570,26 @@ function App() {
     setCommentPanelOpen(true);
   };
 
-  // Save comment from panel (appends user name)
+  // Save comment from panel (appends user name and date)
   const saveCommentFromPanel = () => {
     if (commentPanelData && commentValue.trim()) {
-      // Append username to comment: "comment text_Username"
-      const commentWithUser = currentUser
-        ? `${commentValue.trim()}_${currentUser}`
+      // Format: "Username Дата изменения: DD.MM.YYYY: comment text"
+      const today = new Date();
+      const dateStr = today.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+
+      const commentWithAttribution = currentUser
+        ? `${currentUser} Дата изменения: ${dateStr}: ${commentValue.trim()}`
         : commentValue.trim();
 
       updateTenderRowComment(
         commentPanelData.projectId,
         commentPanelData.fileId,
         commentPanelData.rowId,
-        commentWithUser
+        commentWithAttribution
       );
     }
     setCommentPanelOpen(false);
