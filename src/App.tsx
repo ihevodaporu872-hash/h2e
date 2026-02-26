@@ -1907,8 +1907,8 @@ function App() {
                       <table className="tender-table">
                         <thead>
                           <tr className="tender-header-row-1">
-                            <th rowSpan={2} className="th-name">Комментарий</th>
-                            <th rowSpan={2} className="th-category">Вид работ</th>
+                            <th rowSpan={2} className="th-name">Вид работ</th>
+                            <th rowSpan={2} className="th-category">Комментарий</th>
                             <th rowSpan={2} className="th-volume">Объем</th>
                             <th rowSpan={2} className="th-unit">Ед. изм.</th>
                             <th colSpan={3} className="th-group th-pz">Прямые Затраты</th>
