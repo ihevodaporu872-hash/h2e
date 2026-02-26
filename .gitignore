@@ -26,4 +26,7 @@ dist-ssr
 # MCP config (contains API keys)
 .mcp.json
 
+# Claude settings (may contain tokens)
+.claude/settings.json
+
 .vercel
