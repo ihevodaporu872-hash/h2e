@@ -520,6 +520,80 @@ function App() {
     );
   };
 
+  // Context menu state for expand/collapse all
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    projectId: string;
+    fileId: string;
+  } | null>(null);
+
+  // Expand all sections in a file
+  const expandAllSections = (projectId: string, fileId: string) => {
+    setTenderProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              files: p.files.map((f) =>
+                f.id === fileId
+                  ? {
+                      ...f,
+                      sections: f.sections.map((s) => ({ ...s, expanded: true })),
+                    }
+                  : f
+              ),
+            }
+          : p
+      )
+    );
+    setContextMenu(null);
+  };
+
+  // Collapse all sections in a file
+  const collapseAllSections = (projectId: string, fileId: string) => {
+    setTenderProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              files: p.files.map((f) =>
+                f.id === fileId
+                  ? {
+                      ...f,
+                      sections: f.sections.map((s) => ({ ...s, expanded: false })),
+                    }
+                  : f
+              ),
+            }
+          : p
+      )
+    );
+    setContextMenu(null);
+  };
+
+  // Handle right-click on section row
+  const handleSectionContextMenu = (e: React.MouseEvent, projectId: string, fileId: string) => {
+    e.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      projectId,
+      fileId,
+    });
+  };
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null);
+    if (contextMenu?.visible) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [contextMenu?.visible]);
+
   // State for comment panel (modern slide-in panel)
   const [commentPanelOpen, setCommentPanelOpen] = useState(false);
   const [commentPanelData, setCommentPanelData] = useState<{
@@ -2262,6 +2336,7 @@ function App() {
                                       key={section.id}
                                       className="tender-section-row"
                                       onClick={() => toggleTenderSectionExpanded(project.id, file.id, section.id)}
+                                      onContextMenu={(e) => handleSectionContextMenu(e, project.id, file.id)}
                                     >
                                       <td className="td-name td-section">
                                         <span className="section-expand">
@@ -2465,6 +2540,35 @@ function App() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Context Menu for Expand/Collapse All */}
+        {contextMenu?.visible && (
+          <div
+            className="context-menu"
+            style={{
+              position: 'fixed',
+              top: contextMenu.y,
+              left: contextMenu.x,
+              zIndex: 1000,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="context-menu-item"
+              onClick={() => expandAllSections(contextMenu.projectId, contextMenu.fileId)}
+            >
+              <span className="context-menu-icon">📂</span>
+              Развернуть все разделы
+            </button>
+            <button
+              className="context-menu-item"
+              onClick={() => collapseAllSections(contextMenu.projectId, contextMenu.fileId)}
+            >
+              <span className="context-menu-icon">📁</span>
+              Свернуть все разделы
+            </button>
           </div>
         )}
       </div>
