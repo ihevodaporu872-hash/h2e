@@ -3488,6 +3488,40 @@ body {
   opacity: 0.7;
 }
 
+/* Type-based row colors */
+.eng-detail-table tr.type-sub-mat {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.eng-detail-table tr.type-mat {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.eng-detail-table tr.type-sub-rab {
+  background: rgba(168, 85, 247, 0.08);
+}
+
+.eng-detail-table tr.type-rab {
+  background: rgba(180, 130, 90, 0.08);
+}
+
+/* Dark theme adjustments for type colors */
+[data-theme="dark"] .eng-detail-table tr.type-sub-mat {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+[data-theme="dark"] .eng-detail-table tr.type-mat {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+[data-theme="dark"] .eng-detail-table tr.type-sub-rab {
+  background: rgba(168, 85, 247, 0.12);
+}
+
+[data-theme="dark"] .eng-detail-table tr.type-rab {
+  background: rgba(180, 130, 90, 0.12);
+}
+
 .more-rows {
   padding: 0.5rem 1rem;
   font-size: 0.75rem;

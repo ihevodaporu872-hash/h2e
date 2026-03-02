@@ -1251,12 +1251,13 @@ function App() {
         const isSub = typeLower.includes('суб') || typeLower.includes('sub');
         const isMat = typeLower.includes('мат') || typeLower.includes('mat');
         const typeLabel = isSub ? (isMat ? 'суб-мат' : 'суб-раб') : (isMat ? 'мат' : 'раб');
+        const typeCls = isSub ? (isMat ? 'type-sub-mat' : 'type-sub-rab') : (isMat ? 'type-mat' : 'type-rab');
         const diffCls = c.diff > 0 ? 'diff-up' : c.diff < 0 ? 'diff-down' : '';
         const oldVal = c.changeType === 'new' ? 0 : (c.v1Price * c.v1Qty);
         const significance = getSignificance(c.diff, oldVal);
         const rowCls = c.changeType === 'new' ? 'row-new' : c.changeType === 'removed' ? 'row-removed' : '';
 
-        html += `<tr class="${rowCls} sig-${significance}" data-significance="${significance}">`;
+        html += `<tr class="${rowCls} ${typeCls} sig-${significance}" data-significance="${significance}">`;
         html += `<td class="pos-name">${c.name}</td>`;
         html += `<td class="pos-type">${typeIcon} ${typeLabel}</td>`;
         html += `<td class="pos-vals">${c.v1Price > 0 ? formatNumber(c.v1Price) + '₽' : '—'}<br><span class="qty">${c.v1Qty > 0 ? c.v1Qty.toFixed(1) + ' ' + c.v1Unit : '—'}</span></td>`;
