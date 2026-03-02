@@ -829,7 +829,7 @@ function App() {
     // Check if we have BOQs for comparison
     const boqsWithData = linkedBOQs.filter(l => l.boq && l.boq.items.length > 0);
     if (boqsWithData.length < 2) {
-      setBOQAnalysisResult('Для детального анализа загрузите BOQ файлы для сравниваемых версий.');
+      setBOQAnalysisResult('<div class="boq-no-data">Загрузите BOQ файлы для сравниваемых версий</div>');
       return;
     }
 
@@ -844,17 +844,14 @@ function App() {
 
     // Multi-strategy matching for BOQ items
     const findMatchingItems = (items: BOQItem[], workType: string, sectionNum: string): BOQItem[] => {
-      // Strategy 1: Match by constructionCost containing work type name
       let matched = items.filter(item => {
         const costLower = item.constructionCost.toLowerCase();
         const typeLower = workType.toLowerCase();
-        // Try different parts of the work type name
         return costLower.includes(typeLower) ||
                costLower.includes(typeLower.substring(0, 30)) ||
                costLower.includes(typeLower.split(' ')[0]);
       });
 
-      // Strategy 2: If no match, try section number prefix (e.g., "06.")
       if (matched.length === 0 && sectionNum) {
         matched = items.filter(item => {
           const costLower = item.constructionCost.toLowerCase();
@@ -864,17 +861,15 @@ function App() {
         });
       }
 
-      // Strategy 3: Try keyword matching for common work types
       if (matched.length === 0) {
         const keywords: Record<string, string[]> = {
-          'монолитн': ['бетон', 'арматур', 'опалубк', 'монолит', 'заливк'],
-          'кладоч': ['кирпич', 'блок', 'кладк', 'раствор'],
+          'монолитн': ['бетон', 'арматур', 'опалубк', 'монолит'],
+          'кладоч': ['кирпич', 'блок', 'кладк'],
           'фасад': ['штукатурк', 'утепл', 'облицовк', 'фасад'],
-          'кровел': ['кровл', 'гидроизол', 'утепл', 'мембран'],
-          'отделоч': ['штукатурк', 'покраск', 'обои', 'плитк', 'отделк'],
-          'электр': ['кабел', 'провод', 'электр', 'щит', 'розетк'],
-          'сантехн': ['труб', 'сантехн', 'водопровод', 'канализ'],
-          'вентиляц': ['воздуховод', 'вентил', 'кондиц'],
+          'кровел': ['кровл', 'гидроизол', 'мембран'],
+          'отделоч': ['штукатурк', 'покраск', 'плитк'],
+          'электр': ['кабел', 'провод', 'электр'],
+          'сантехн': ['труб', 'сантехн', 'водопровод'],
         };
 
         const workTypeLower = workType.toLowerCase();
@@ -889,97 +884,38 @@ function App() {
           }
         }
       }
-
       return matched;
     };
 
     const items1 = findMatchingItems(boq1.boq!.items, workTypeClean, sectionNumber);
     const items2 = findMatchingItems(boq2.boq!.items, workTypeClean, sectionNumber);
 
-    // If still no match, use all items for general analysis
     const useAllItems = items1.length === 0 && items2.length === 0;
     const finalItems1 = useAllItems ? boq1.boq!.items : items1;
     const finalItems2 = useAllItems ? boq2.boq!.items : items2;
 
     // Categorize by element type
     const categorizeItems = (items: BOQItem[]) => {
-      const materials = items.filter(i => {
-        const type = i.elementType.toLowerCase();
-        return type.includes('мат') || type.includes('mat');
-      });
-      const works = items.filter(i => {
-        const type = i.elementType.toLowerCase();
-        return type.includes('раб') || type.includes('work') || type.includes('монтаж');
-      });
+      const materials = items.filter(i => i.elementType.toLowerCase().includes('мат'));
+      const works = items.filter(i => i.elementType.toLowerCase().includes('раб'));
       return { materials, works };
     };
 
     const cat1 = categorizeItems(finalItems1);
     const cat2 = categorizeItems(finalItems2);
 
-    const totalMaterials1 = cat1.materials.reduce((sum, i) => sum + i.totalSum, 0);
-    const totalWorks1 = cat1.works.reduce((sum, i) => sum + i.totalSum, 0);
-    const totalMaterials2 = cat2.materials.reduce((sum, i) => sum + i.totalSum, 0);
-    const totalWorks2 = cat2.works.reduce((sum, i) => sum + i.totalSum, 0);
+    const totalMat1 = cat1.materials.reduce((s, i) => s + i.totalSum, 0);
+    const totalWork1 = cat1.works.reduce((s, i) => s + i.totalSum, 0);
+    const totalMat2 = cat2.materials.reduce((s, i) => s + i.totalSum, 0);
+    const totalWork2 = cat2.works.reduce((s, i) => s + i.totalSum, 0);
 
-    const materialDiff = totalMaterials2 - totalMaterials1;
-    const workDiff = totalWorks2 - totalWorks1;
+    const matDiff = totalMat2 - totalMat1;
+    const workDiff = totalWork2 - totalWork1;
+    const matPercent = totalMat1 !== 0 ? ((matDiff / totalMat1) * 100).toFixed(1) : '0';
+    const workPercent = totalWork1 !== 0 ? ((workDiff / totalWork1) * 100).toFixed(1) : '0';
 
-    // Build professional report
-    let analysis = `📊 **АНАЛИТИЧЕСКИЙ ОТЧЕТ ПТО**\n`;
-    analysis += `**Раздел:** ${workTypeClean}\n`;
-    analysis += `═══════════════════════════════════════\n\n`;
-
-    analysis += `**${boq1.label}** vs **${boq2.label}**\n\n`;
-
-    // General difference from comparison
-    if (boq1.value !== null && boq2.value !== null) {
-      const valueDiff = boq2.value - boq1.value;
-      const valueDiffPercent = boq1.value !== 0 ? ((valueDiff / boq1.value) * 100).toFixed(1) : '0';
-      analysis += `💰 **Общая разница по разделу:** ${valueDiff >= 0 ? '+' : ''}${formatNumber(valueDiff)} ₽ (${valueDiff >= 0 ? '+' : ''}${valueDiffPercent}%)\n\n`;
-    }
-
-    // Warning if using all items
-    if (useAllItems) {
-      analysis += `⚠️ _Не удалось сопоставить позиции по виду работ "${workTypeClean}". Анализ выполнен по всем позициям BOQ._\n\n`;
-    }
-
-    analysis += `───────────────────────────────────────\n`;
-    analysis += `**СВОДКА ПО КАТЕГОРИЯМ**\n`;
-    analysis += `───────────────────────────────────────\n\n`;
-
-    // Materials summary
-    analysis += `🧱 **МАТЕРИАЛЫ (мат, суб-мат):**\n`;
-    analysis += `├ Версия 1: ${formatCurrency(totalMaterials1)} (${cat1.materials.length} поз.)\n`;
-    analysis += `├ Версия 2: ${formatCurrency(totalMaterials2)} (${cat2.materials.length} поз.)\n`;
-    if (materialDiff !== 0) {
-      const matPercent = totalMaterials1 !== 0 ? ((materialDiff / totalMaterials1) * 100).toFixed(1) : '0';
-      analysis += `└ **Δ Разница:** ${materialDiff >= 0 ? '+' : ''}${formatCurrency(materialDiff)} (${materialDiff >= 0 ? '+' : ''}${matPercent}%)\n`;
-    } else {
-      analysis += `└ Без изменений\n`;
-    }
-    analysis += `\n`;
-
-    // Works summary
-    analysis += `🔧 **РАБОТЫ (раб, суб-раб):**\n`;
-    analysis += `├ Версия 1: ${formatCurrency(totalWorks1)} (${cat1.works.length} поз.)\n`;
-    analysis += `├ Версия 2: ${formatCurrency(totalWorks2)} (${cat2.works.length} поз.)\n`;
-    if (workDiff !== 0) {
-      const workPercent = totalWorks1 !== 0 ? ((workDiff / totalWorks1) * 100).toFixed(1) : '0';
-      analysis += `└ **Δ Разница:** ${workDiff >= 0 ? '+' : ''}${formatCurrency(workDiff)} (${workDiff >= 0 ? '+' : ''}${workPercent}%)\n`;
-    } else {
-      analysis += `└ Без изменений\n`;
-    }
-    analysis += `\n`;
-
-    // Detailed position comparison
-    analysis += `───────────────────────────────────────\n`;
-    analysis += `**ДЕТАЛЬНЫЙ АНАЛИЗ ПОЗИЦИЙ**\n`;
-    analysis += `───────────────────────────────────────\n\n`;
-
-    // Create name-based index for comparison
+    // Find new and removed items
     const normalizeNameForComparison = (name: string) => name.toLowerCase().replace(/\s+/g, ' ').trim().substring(0, 50);
-
     const items1Map = new Map<string, BOQItem[]>();
     finalItems1.forEach(item => {
       const key = normalizeNameForComparison(item.name);
@@ -994,10 +930,9 @@ function App() {
       items2Map.get(key)!.push(item);
     });
 
-    // Find price changes
-    const priceChanges: { name: string; old: number; new: number; diff: number; percent: number; type: string }[] = [];
     const newItems: BOQItem[] = [];
     const removedItems: BOQItem[] = [];
+    const changedItems: { name: string; type: string; old: number; new: number; diff: number }[] = [];
 
     items2Map.forEach((items2List, key) => {
       const items1List = items1Map.get(key);
@@ -1005,16 +940,8 @@ function App() {
         const total1 = items1List.reduce((s, i) => s + i.totalSum, 0);
         const total2 = items2List.reduce((s, i) => s + i.totalSum, 0);
         const diff = total2 - total1;
-        if (Math.abs(diff) > 0.01) {
-          const percent = total1 !== 0 ? (diff / total1) * 100 : 0;
-          priceChanges.push({
-            name: items2List[0].name.substring(0, 60),
-            old: total1,
-            new: total2,
-            diff,
-            percent,
-            type: items2List[0].elementType
-          });
+        if (Math.abs(diff) > 100) {
+          changedItems.push({ name: items2List[0].name.substring(0, 40), type: items2List[0].elementType, old: total1, new: total2, diff });
         }
       } else {
         newItems.push(...items2List);
@@ -1022,90 +949,104 @@ function App() {
     });
 
     items1Map.forEach((items1List, key) => {
-      if (!items2Map.has(key)) {
-        removedItems.push(...items1List);
-      }
+      if (!items2Map.has(key)) removedItems.push(...items1List);
     });
 
-    // Report new items
-    if (newItems.length > 0) {
-      analysis += `🆕 **НОВЫЕ ПОЗИЦИИ (добавлены в версии 2):**\n`;
-      const newTotal = newItems.reduce((s, i) => s + i.totalSum, 0);
-      analysis += `Всего добавлено: ${newItems.length} поз. на сумму ${formatCurrency(newTotal)}\n\n`;
-      newItems.slice(0, 10).forEach(item => {
-        analysis += `• **${item.name.substring(0, 50)}${item.name.length > 50 ? '...' : ''}**\n`;
-        analysis += `  Тип: ${item.elementType} | ${item.quantity} ${item.unit} × ${formatCurrency(item.pricePerUnit)} = ${formatCurrency(item.totalSum)}\n`;
-      });
-      if (newItems.length > 10) {
-        analysis += `  ... и ещё ${newItems.length - 10} позиций\n`;
-      }
-      analysis += `\n`;
-    }
+    // Sort changes by absolute diff
+    changedItems.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 
-    // Report removed items
-    if (removedItems.length > 0) {
-      analysis += `🗑️ **УДАЛЁННЫЕ ПОЗИЦИИ (отсутствуют в версии 2):**\n`;
-      const removedTotal = removedItems.reduce((s, i) => s + i.totalSum, 0);
-      analysis += `Всего удалено: ${removedItems.length} поз. на сумму ${formatCurrency(removedTotal)}\n\n`;
-      removedItems.slice(0, 10).forEach(item => {
-        analysis += `• ~~${item.name.substring(0, 50)}${item.name.length > 50 ? '...' : ''}~~\n`;
-        analysis += `  Тип: ${item.elementType} | Было: ${formatCurrency(item.totalSum)}\n`;
-      });
-      if (removedItems.length > 10) {
-        analysis += `  ... и ещё ${removedItems.length - 10} позиций\n`;
-      }
-      analysis += `\n`;
-    }
+    // Short labels for versions
+    const v1Label = boq1.label.replace('Затраты ', '').replace(' Прямые', '').substring(0, 20);
+    const v2Label = boq2.label.replace('Затраты ', '').replace(' Прямые', '').substring(0, 20);
 
-    // Report price changes (top 10 by absolute difference)
-    if (priceChanges.length > 0) {
-      const sortedChanges = priceChanges.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
-      analysis += `📈 **ИЗМЕНЕНИЯ ЦЕН (топ позиций по отклонению):**\n\n`;
-      sortedChanges.slice(0, 10).forEach(change => {
-        const arrow = change.diff > 0 ? '↑' : '↓';
-        const color = change.diff > 0 ? 'рост' : 'снижение';
-        analysis += `• **${change.name}${change.name.length >= 60 ? '...' : ''}**\n`;
-        analysis += `  ${change.type} | ${formatCurrency(change.old)} → ${formatCurrency(change.new)}\n`;
-        analysis += `  ${arrow} **${color}:** ${change.diff >= 0 ? '+' : ''}${formatCurrency(change.diff)} (${change.percent >= 0 ? '+' : ''}${change.percent.toFixed(1)}%)\n\n`;
-      });
-      if (sortedChanges.length > 10) {
-        analysis += `  ... и ещё ${sortedChanges.length - 10} позиций с изменениями\n\n`;
-      }
-    }
+    // Build compact HTML table
+    let html = `<div class="boq-table-report">`;
+    html += `<div class="boq-report-header">${workTypeClean}</div>`;
 
-    // Final conclusion
-    analysis += `═══════════════════════════════════════\n`;
-    analysis += `📝 **ЗАКЛЮЧЕНИЕ:**\n`;
-    analysis += `═══════════════════════════════════════\n\n`;
+    // Main comparison table
+    html += `<table class="boq-compare-table">`;
+    html += `<thead><tr><th>Категория</th><th>${v1Label}</th><th>${v2Label}</th><th>Δ Разница</th></tr></thead>`;
+    html += `<tbody>`;
 
-    const totalDiff = materialDiff + workDiff;
-    if (Math.abs(materialDiff) > Math.abs(workDiff) * 2) {
-      analysis += `Основная причина расхождения — **изменение стоимости материалов** `;
-      analysis += `(${materialDiff >= 0 ? 'увеличение' : 'снижение'} на ${formatCurrency(Math.abs(materialDiff))}).\n\n`;
-      if (newItems.filter(i => i.elementType.toLowerCase().includes('мат')).length > 0) {
-        analysis += `Выявлены новые позиции материалов, что объясняет рост стоимости.\n`;
-      }
-    } else if (Math.abs(workDiff) > Math.abs(materialDiff) * 2) {
-      analysis += `Основная причина расхождения — **изменение стоимости работ** `;
-      analysis += `(${workDiff >= 0 ? 'увеличение' : 'снижение'} на ${formatCurrency(Math.abs(workDiff))}).\n\n`;
-      analysis += `Возможные причины: уточнение технологии, изменение объёмов, корректировка расценок.\n`;
-    } else if (totalDiff !== 0) {
-      analysis += `Изменения распределены между материалами и работами:\n`;
-      analysis += `• Материалы: ${materialDiff >= 0 ? '+' : ''}${formatCurrency(materialDiff)}\n`;
-      analysis += `• Работы: ${workDiff >= 0 ? '+' : ''}${formatCurrency(workDiff)}\n\n`;
+    // Materials row
+    const matDiffClass = matDiff > 0 ? 'diff-up' : matDiff < 0 ? 'diff-down' : '';
+    html += `<tr>`;
+    html += `<td><span class="cat-icon">🧱</span> Материалы</td>`;
+    html += `<td>${formatCurrency(totalMat1)}<span class="pos-count">${cat1.materials.length} поз.</span></td>`;
+    html += `<td>${formatCurrency(totalMat2)}<span class="pos-count">${cat2.materials.length} поз.</span></td>`;
+    html += `<td class="${matDiffClass}">${matDiff >= 0 ? '+' : ''}${formatCurrency(matDiff)} <span class="diff-pct">(${matDiff >= 0 ? '+' : ''}${matPercent}%)</span></td>`;
+    html += `</tr>`;
+
+    // Works row
+    const workDiffClass = workDiff > 0 ? 'diff-up' : workDiff < 0 ? 'diff-down' : '';
+    html += `<tr>`;
+    html += `<td><span class="cat-icon">🔧</span> Работы</td>`;
+    html += `<td>${formatCurrency(totalWork1)}<span class="pos-count">${cat1.works.length} поз.</span></td>`;
+    html += `<td>${formatCurrency(totalWork2)}<span class="pos-count">${cat2.works.length} поз.</span></td>`;
+    html += `<td class="${workDiffClass}">${workDiff >= 0 ? '+' : ''}${formatCurrency(workDiff)} <span class="diff-pct">(${workDiff >= 0 ? '+' : ''}${workPercent}%)</span></td>`;
+    html += `</tr>`;
+
+    // Total row
+    const totalDiff = matDiff + workDiff;
+    const totalDiffClass = totalDiff > 0 ? 'diff-up' : totalDiff < 0 ? 'diff-down' : '';
+    html += `<tr class="total-row">`;
+    html += `<td><strong>ИТОГО</strong></td>`;
+    html += `<td><strong>${formatCurrency(totalMat1 + totalWork1)}</strong></td>`;
+    html += `<td><strong>${formatCurrency(totalMat2 + totalWork2)}</strong></td>`;
+    html += `<td class="${totalDiffClass}"><strong>${totalDiff >= 0 ? '+' : ''}${formatCurrency(totalDiff)}</strong></td>`;
+    html += `</tr>`;
+    html += `</tbody></table>`;
+
+    // Conclusion
+    html += `<div class="boq-conclusion">`;
+    if (Math.abs(matDiff) > Math.abs(workDiff) * 1.5) {
+      html += `<span class="conclusion-icon">📉</span> Основная причина: <strong>изменение материалов</strong> (${matDiff >= 0 ? '+' : ''}${formatCurrency(matDiff)})`;
+    } else if (Math.abs(workDiff) > Math.abs(matDiff) * 1.5) {
+      html += `<span class="conclusion-icon">🔧</span> Основная причина: <strong>изменение работ</strong> (${workDiff >= 0 ? '+' : ''}${formatCurrency(workDiff)})`;
     } else {
-      analysis += `Существенных изменений в BOQ не выявлено.\n`;
+      html += `<span class="conclusion-icon">⚖️</span> Изменения распределены между материалами и работами`;
+    }
+    html += `</div>`;
+
+    // Changes summary (compact)
+    if (newItems.length > 0 || removedItems.length > 0 || changedItems.length > 0) {
+      html += `<div class="boq-changes-summary">`;
+      if (newItems.length > 0) {
+        const newTotal = newItems.reduce((s, i) => s + i.totalSum, 0);
+        html += `<span class="change-badge new">+${newItems.length} новых (${formatCurrency(newTotal)})</span>`;
+      }
+      if (removedItems.length > 0) {
+        const rmTotal = removedItems.reduce((s, i) => s + i.totalSum, 0);
+        html += `<span class="change-badge removed">-${removedItems.length} удалено (${formatCurrency(rmTotal)})</span>`;
+      }
+      if (changedItems.length > 0) {
+        html += `<span class="change-badge changed">~${changedItems.length} изменено</span>`;
+      }
+      html += `</div>`;
     }
 
-    if (newItems.length > 0 || removedItems.length > 0) {
-      analysis += `\n**Структурные изменения:**\n`;
-      if (newItems.length > 0) analysis += `• Добавлено ${newItems.length} новых позиций\n`;
-      if (removedItems.length > 0) analysis += `• Удалено ${removedItems.length} позиций\n`;
+    // Top 5 changes table (if any)
+    if (changedItems.length > 0) {
+      html += `<div class="boq-changes-title">Топ изменений по стоимости:</div>`;
+      html += `<table class="boq-changes-table">`;
+      html += `<thead><tr><th>Позиция</th><th>Тип</th><th>Было</th><th>Стало</th><th>Δ</th></tr></thead>`;
+      html += `<tbody>`;
+      changedItems.slice(0, 5).forEach(item => {
+        const cls = item.diff > 0 ? 'diff-up' : 'diff-down';
+        html += `<tr>`;
+        html += `<td class="pos-name">${item.name}${item.name.length >= 40 ? '...' : ''}</td>`;
+        html += `<td class="pos-type">${item.type}</td>`;
+        html += `<td>${formatCurrency(item.old)}</td>`;
+        html += `<td>${formatCurrency(item.new)}</td>`;
+        html += `<td class="${cls}">${item.diff >= 0 ? '+' : ''}${formatCurrency(item.diff)}</td>`;
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
     }
 
-    analysis += `\n_Анализ выполнен в соответствии с требованиями СП, СНиП и ГОСТ РФ._`;
+    html += `</div>`;
 
-    setBOQAnalysisResult(analysis);
+    setBOQAnalysisResult(html);
   };
 
   // Checklist page functions
@@ -3578,20 +3519,7 @@ function App() {
 
                     {/* BOQ Analysis Results */}
                     {boqAnalysisResult && (
-                      <div className="boq-analysis-result">
-                        <h4>📊 Анализ BOQ (Весь ВОР)</h4>
-                        <div className="boq-analysis-content">
-                          {boqAnalysisResult.split('\n').map((line, i) => {
-                            // Parse markdown-like formatting
-                            let formattedLine = line
-                              .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                              .replace(/_([^_]+)_/g, '<em>$1</em>');
-                            return (
-                              <p key={i} dangerouslySetInnerHTML={{ __html: formattedLine || '&nbsp;' }} />
-                            );
-                          })}
-                        </div>
-                      </div>
+                      <div className="boq-analysis-result" dangerouslySetInnerHTML={{ __html: boqAnalysisResult }} />
                     )}
                   </div>
                 )}
