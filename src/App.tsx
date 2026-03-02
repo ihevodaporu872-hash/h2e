@@ -832,56 +832,128 @@ function App() {
     }
 
     const workTypeClean = analyticsSelectedWorkType.replace(/^[■└\s]+/, '').trim();
-    // Extract work type name without number prefix (e.g., "06. МОНОЛИТНЫЕ РАБОТЫ" -> "МОНОЛИТНЫЕ РАБОТЫ")
+    // Extract work type name without number prefix (e.g., "06. Монолитные работы" -> "Монолитные работы")
     const workTypeNameOnly = workTypeClean.replace(/^\d{2}\.\s*/, '').trim();
 
     const boq1 = boqsWithData[0];
     const boq2 = boqsWithData[1];
 
-    // Match by "Затрата на строительство" field - compare work type names
-    // BOQ format: "МОНОЛИТНЫЕ РАБОТЫ / Балки / Здание" matches "06. МОНОЛИТНЫЕ РАБОТЫ"
-    const findMatchingItems = (items: BOQItem[], workTypeName: string): BOQItem[] => {
-      const searchName = workTypeName.toUpperCase();
+    // ===== INTELLIGENT BOQ MATCHING =====
+    // Match by engineering section semantically, not by exact text
 
+    // Normalize text for comparison: uppercase, remove extra spaces, common variations
+    const normalizeForMatch = (text: string): string => {
+      return text
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[«»"']/g, '')
+        .trim();
+    };
+
+    // Extract key engineering words (remove common words like "и", "на", "для", "работы")
+    const extractKeywords = (text: string): string[] => {
+      const stopWords = ['И', 'НА', 'ДЛЯ', 'ПО', 'ИЗ', 'ПОД', 'ПРИ', 'С', 'К', 'В', 'РАБОТЫ', 'РАБОТА'];
+      return normalizeForMatch(text)
+        .split(/[\s\/]+/)
+        .filter(w => w.length > 2 && !stopWords.includes(w));
+    };
+
+    // Engineering section mapping for common variations
+    const sectionAliases: Record<string, string[]> = {
+      'ВОДООТВЕДЕНИЕ': ['ВОДООТВЕДЕНИЕ', 'ВОДОПОНИЖЕНИЕ', 'ДРЕНАЖ', 'КАНАЛИЗАЦИЯ'],
+      'МОНОЛИТНЫЕ': ['МОНОЛИТНЫЕ', 'МОНОЛИТ', 'БЕТОН', 'ЖЕЛЕЗОБЕТОН', 'ЖБ'],
+      'ЗЕМЛЯНЫЕ': ['ЗЕМЛЯНЫЕ', 'ЗЕМЛЯ', 'ГРУНТ', 'КОТЛОВАН', 'ВЫЕМКА'],
+      'КЛАДОЧНЫЕ': ['КЛАДОЧНЫЕ', 'КЛАДКА', 'КИРПИЧ', 'БЛОК'],
+      'ФАСАДНЫЕ': ['ФАСАДНЫЕ', 'ФАСАД', 'ОБЛИЦОВКА', 'НВФ'],
+      'КРОВЛЯ': ['КРОВЛЯ', 'КРОВЕЛЬНЫЕ', 'КРЫША'],
+      'ОТДЕЛОЧНЫЕ': ['ОТДЕЛОЧНЫЕ', 'ОТДЕЛКА', 'ШТУКАТУР', 'ПОКРАСКА', 'МАЛЯРНЫЕ'],
+      'БЛАГОУСТРОЙСТВО': ['БЛАГОУСТРОЙСТВО', 'ОЗЕЛЕНЕНИЕ', 'АСФАЛЬТ'],
+      'ОРГАНИЗАЦИЯ': ['ОРГАНИЗАЦИЯ', 'ОСП', 'ВРЕМЕННЫЕ', 'БЫТОВОЙ'],
+      'ГИДРОИЗОЛЯЦИЯ': ['ГИДРОИЗОЛЯЦИЯ', 'ГИДРОИЗОЛЯЦИОННЫЕ'],
+      'МЕТАЛЛИЧЕСКИЕ': ['МЕТАЛЛИЧЕСКИЕ', 'МЕТАЛЛОКОНСТРУКЦИИ', 'МК'],
+      'УСТРОЙСТВО КОТЛОВАНА': ['УСТРОЙСТВО КОТЛОВАНА', 'КОТЛОВАН', 'ШПУНТ', 'РАСПОР'],
+      'ВИС': ['ВИС', 'МЕХАНИЧЕСКИЕ', 'ИНЖЕНЕРНЫЕ СИСТЕМЫ'],
+    };
+
+    // Find which engineering section this work type belongs to
+    const findSectionKey = (workType: string): string | null => {
+      const normalized = normalizeForMatch(workType);
+      for (const [key, aliases] of Object.entries(sectionAliases)) {
+        if (aliases.some(alias => normalized.includes(alias))) {
+          return key;
+        }
+      }
+      return null;
+    };
+
+    const sectionKey = findSectionKey(workTypeNameOnly);
+    const workTypeNormalized = normalizeForMatch(workTypeNameOnly);
+    const workTypeKeywords = extractKeywords(workTypeNameOnly);
+
+    // Main matching function - semantic matching by engineering section
+    const findMatchingItems = (items: BOQItem[]): BOQItem[] => {
       return items.filter(item => {
-        const costField = item.constructionCost.toUpperCase().trim();
+        const costField = item.constructionCost;
+        const firstPart = normalizeForMatch(costField.split('/')[0]);
 
-        // Get first part before "/" separator (e.g., "МОНОЛИТНЫЕ РАБОТЫ" from "МОНОЛИТНЫЕ РАБОТЫ / Балки / Здание")
-        const firstPart = costField.split('/')[0].trim();
+        // Strategy 1: Direct keyword match in first part of constructionCost
+        if (workTypeKeywords.length > 0) {
+          const matchCount = workTypeKeywords.filter(kw => firstPart.includes(kw)).length;
+          // At least 50% of keywords must match
+          if (matchCount >= Math.ceil(workTypeKeywords.length * 0.5)) {
+            return true;
+          }
+        }
 
-        // Exact match of first part
-        if (firstPart === searchName) {
+        // Strategy 2: Section alias matching
+        if (sectionKey) {
+          const aliases = sectionAliases[sectionKey];
+          if (aliases.some(alias => firstPart.includes(alias))) {
+            return true;
+          }
+        }
+
+        // Strategy 3: First part equals or starts with work type
+        if (firstPart === workTypeNormalized || firstPart.startsWith(workTypeNormalized)) {
           return true;
         }
 
-        // First part starts with search name
-        if (firstPart.startsWith(searchName)) {
+        // Strategy 4: Work type is contained in first part
+        if (workTypeNormalized.length > 5 && firstPart.includes(workTypeNormalized)) {
           return true;
         }
 
-        // Search name starts with first part (for shorter BOQ names)
-        if (searchName.startsWith(firstPart) && firstPart.length > 5) {
-          return true;
-        }
-
-        // For sub-items like "06.01 Арматурные работы", check if main type matches
-        // Match words - all significant words must be present
-        const searchWords = searchName.split(/\s+/).filter(w => w.length > 3);
-        const costWords = firstPart.split(/\s+/);
-        if (searchWords.length > 0 && searchWords.every(sw => costWords.some(cw => cw.includes(sw) || sw.includes(cw)))) {
-          return true;
+        // Strategy 5: Check if main engineering words match (ignore "работы", "и", etc.)
+        const costKeywords = extractKeywords(costField.split('/')[0]);
+        if (workTypeKeywords.length > 0 && costKeywords.length > 0) {
+          const mainWordMatch = workTypeKeywords.some(wk =>
+            costKeywords.some(ck => ck.includes(wk) || wk.includes(ck))
+          );
+          if (mainWordMatch) {
+            return true;
+          }
         }
 
         return false;
       });
     };
 
-    const final1 = findMatchingItems(boq1.boq!.items, workTypeNameOnly);
-    const final2 = findMatchingItems(boq2.boq!.items, workTypeNameOnly);
+    const final1 = findMatchingItems(boq1.boq!.items);
+    const final2 = findMatchingItems(boq2.boq!.items);
 
-    // If no items found for this work type, show message
+    // If no items found for this work type, show helpful message
     if (final1.length === 0 && final2.length === 0) {
-      setBOQAnalysisResult(`<div class="boq-no-data">Нет позиций BOQ для "${workTypeNameOnly}".<br><small>Проверьте колонку "Затрата на строительство" в BOQ.<br>Ожидаемый формат: "${workTypeNameOnly} / подтип / объект"</small></div>`);
+      const uniqueSections = new Set<string>();
+      [...boq1.boq!.items, ...boq2.boq!.items].forEach(item => {
+        const section = item.constructionCost.split('/')[0].trim().toUpperCase();
+        if (section) uniqueSections.add(section);
+      });
+      const availableSections = Array.from(uniqueSections).slice(0, 5).join(', ');
+
+      setBOQAnalysisResult(`<div class="boq-no-data">
+        <strong>Нет позиций BOQ для раздела "${workTypeNameOnly}"</strong><br><br>
+        <small>Доступные разделы в BOQ:<br>${availableSections}${uniqueSections.size > 5 ? '...' : ''}</small>
+      </div>`);
       return;
     }
 
