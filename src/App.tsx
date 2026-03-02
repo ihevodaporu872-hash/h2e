@@ -2765,8 +2765,10 @@ function App() {
                         }}
                       />
                       <span className="mode-icon">📊</span>
-                      <span className="mode-label">Между проектами</span>
-                      <span className="mode-desc">Сравнение разных тендерных проектов</span>
+                      <div className="mode-text">
+                        <span className="mode-label">Между проектами</span>
+                        <span className="mode-desc">Сравнение разных тендерных проектов</span>
+                      </div>
                     </label>
                     <label className={`mode-option ${analyticsCompareMode === 'versions' ? 'active' : ''}`}>
                       <input
@@ -2781,8 +2783,10 @@ function App() {
                         }}
                       />
                       <span className="mode-icon">📑</span>
-                      <span className="mode-label">Между версиями</span>
-                      <span className="mode-desc">Сравнение файлов одного проекта по датам</span>
+                      <div className="mode-text">
+                        <span className="mode-label">Между версиями</span>
+                        <span className="mode-desc">Сравнение файлов одного проекта по датам</span>
+                      </div>
                     </label>
                   </div>
                 </div>
