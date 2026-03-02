@@ -838,38 +838,40 @@ function App() {
     const boq1 = boqsWithData[0];
     const boq2 = boqsWithData[1];
 
-    // Multi-strategy matching
+    // Strict matching by "Затрата на строительство" field - ONLY show items for selected work type
     const findMatchingItems = (items: BOQItem[], workType: string, sectionNum: string): BOQItem[] => {
-      let matched = items.filter(item => {
-        const costLower = item.constructionCost.toLowerCase();
-        const typeLower = workType.toLowerCase();
-        return costLower.includes(typeLower) || costLower.includes(typeLower.substring(0, 30));
-      });
-      if (matched.length === 0 && sectionNum) {
-        matched = items.filter(item =>
-          item.constructionCost.includes(sectionNum + '.') || item.positionNumber.startsWith(sectionNum)
-        );
-      }
-      if (matched.length === 0) {
-        const keywords: Record<string, string[]> = {
-          'монолитн': ['бетон', 'арматур', 'опалубк'], 'кладоч': ['кирпич', 'блок'],
-          'фасад': ['штукатурк', 'утепл'], 'кровел': ['кровл', 'гидроизол'],
-        };
-        for (const [key, kws] of Object.entries(keywords)) {
-          if (workType.toLowerCase().includes(key)) {
-            matched = items.filter(i => kws.some(k => i.name.toLowerCase().includes(k)));
-            break;
-          }
+      // Primary: Match by constructionCost field containing the work type or section number
+      return items.filter(item => {
+        const costField = item.constructionCost.toLowerCase().trim();
+        const workTypeLower = workType.toLowerCase();
+
+        // Match by section number prefix (e.g., "02." for "02. ЗЕМЛЯНЫЕ РАБОТЫ")
+        if (sectionNum && costField.startsWith(sectionNum + '.')) {
+          return true;
         }
-      }
-      return matched;
+
+        // Match by work type name
+        if (costField.includes(workTypeLower.substring(0, 20))) {
+          return true;
+        }
+
+        // Match by section number anywhere in constructionCost
+        if (sectionNum && costField.includes(sectionNum + '.')) {
+          return true;
+        }
+
+        return false;
+      });
     };
 
-    const items1 = findMatchingItems(boq1.boq!.items, workTypeClean, sectionNumber);
-    const items2 = findMatchingItems(boq2.boq!.items, workTypeClean, sectionNumber);
-    const useAll = items1.length === 0 && items2.length === 0;
-    const final1 = useAll ? boq1.boq!.items : items1;
-    const final2 = useAll ? boq2.boq!.items : items2;
+    const final1 = findMatchingItems(boq1.boq!.items, workTypeClean, sectionNumber);
+    const final2 = findMatchingItems(boq2.boq!.items, workTypeClean, sectionNumber);
+
+    // If no items found for this work type, show message
+    if (final1.length === 0 && final2.length === 0) {
+      setBOQAnalysisResult(`<div class="boq-no-data">Нет позиций BOQ для раздела "${workTypeClean}".<br>Проверьте поле "Затрата на строительство" в BOQ файлах.</div>`);
+      return;
+    }
 
     // Categorize
     const catItems = (items: BOQItem[]) => ({
