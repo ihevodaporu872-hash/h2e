@@ -3881,3 +3881,99 @@ body {
 .context-menu-icon {
   font-size: 1rem;
 }
+
+/* ==========================================
+   BOQ SIGNIFICANCE FILTER
+   ========================================== */
+
+.boq-filter-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  background: var(--bg-hover);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.boq-filter-panel .filter-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+}
+
+.boq-filter-panel .filter-btn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.boq-filter-panel .filter-btn:hover {
+  background: var(--bg-active);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.boq-filter-panel .filter-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Significance row highlighting */
+.eng-detail-table tbody tr.sig-minor {
+  background: rgba(34, 197, 94, 0.08);
+  border-left: 3px solid #22c55e;
+}
+
+.eng-detail-table tbody tr.sig-medium {
+  background: rgba(234, 179, 8, 0.08);
+  border-left: 3px solid #eab308;
+}
+
+.eng-detail-table tbody tr.sig-significant {
+  background: rgba(249, 115, 22, 0.08);
+  border-left: 3px solid #f97316;
+}
+
+.eng-detail-table tbody tr.sig-critical {
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .eng-detail-table tbody tr.sig-minor {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+[data-theme="dark"] .eng-detail-table tbody tr.sig-medium {
+  background: rgba(234, 179, 8, 0.12);
+}
+
+[data-theme="dark"] .eng-detail-table tbody tr.sig-significant {
+  background: rgba(249, 115, 22, 0.15);
+}
+
+[data-theme="dark"] .eng-detail-table tbody tr.sig-critical {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+/* Filter status text */
+.boq-filter-status {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: right;
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+}

@@ -622,6 +622,55 @@ function App() {
     }
   }, [contextMenu?.visible]);
 
+  // Handle BOQ filter button clicks (for dynamically rendered HTML)
+  useEffect(() => {
+    if (!boqAnalysisResult) return;
+
+    const filterPanel = document.getElementById('boq-filter-panel');
+    const detailTable = document.getElementById('boq-detail-table');
+    const filterStatus = document.getElementById('boq-filter-status');
+
+    if (!filterPanel || !detailTable) return;
+
+    const handleFilterClick = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (!target.classList.contains('filter-btn')) return;
+
+      const filter = target.getAttribute('data-filter') as 'all' | 'minor' | 'medium' | 'significant' | 'critical';
+      if (!filter) return;
+
+      // Update active button
+      filterPanel.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+      target.classList.add('active');
+
+      // Filter table rows
+      const rows = detailTable.querySelectorAll('tbody tr');
+      let visibleCount = 0;
+      const totalCount = rows.length;
+
+      rows.forEach(row => {
+        const rowSig = row.getAttribute('data-significance');
+        if (filter === 'all' || rowSig === filter) {
+          (row as HTMLElement).style.display = '';
+          visibleCount++;
+        } else {
+          (row as HTMLElement).style.display = 'none';
+        }
+      });
+
+      // Update status text
+      if (filterStatus) {
+        filterStatus.textContent = `Показано: ${visibleCount} из ${totalCount} позиций`;
+      }
+    };
+
+    filterPanel.addEventListener('click', handleFilterClick);
+
+    return () => {
+      filterPanel.removeEventListener('click', handleFilterClick);
+    };
+  }, [boqAnalysisResult]);
+
   // State for comment panel (modern slide-in panel)
   const [commentPanelOpen, setCommentPanelOpen] = useState(false);
   const [commentPanelData, setCommentPanelData] = useState<{
@@ -1152,10 +1201,39 @@ function App() {
     if (changedCount > 0) html += `<span class="badge chg">~${changedCount}</span>`;
     html += `</div></div></div>`;
 
-    // Detailed table
+    // Detailed table with significance levels
     if (changes.length > 0) {
-      html += `<div class="eng-table-title">Детальный анализ позиций BOQ (топ ${Math.min(15, changes.length)})</div>`;
-      html += `<div class="eng-table-wrap"><table class="eng-detail-table">`;
+      // Calculate significance for each change
+      const getSignificance = (diff: number, oldValue: number): 'minor' | 'medium' | 'significant' | 'critical' => {
+        if (oldValue === 0) return Math.abs(diff) > 100000 ? 'critical' : 'significant';
+        const pct = Math.abs((diff / oldValue) * 100);
+        if (pct < 5) return 'minor';
+        if (pct < 15) return 'medium';
+        if (pct < 30) return 'significant';
+        return 'critical';
+      };
+
+      // Count by significance
+      const sigCounts = { minor: 0, medium: 0, significant: 0, critical: 0 };
+      changes.forEach(c => {
+        const oldVal = c.changeType === 'new' ? 0 : (c.v1Price * c.v1Qty);
+        const sig = getSignificance(c.diff, oldVal);
+        sigCounts[sig]++;
+      });
+
+      html += `<div class="eng-table-title">Детальный анализ позиций BOQ (${changes.length} позиций)</div>`;
+
+      // Filter panel
+      html += `<div class="boq-filter-panel" id="boq-filter-panel">`;
+      html += `<span class="filter-label">Фильтр значимости Δ:</span>`;
+      html += `<button class="filter-btn active" data-filter="all">Все (${changes.length})</button>`;
+      html += `<button class="filter-btn" data-filter="minor">Незначит. &lt;5% (${sigCounts.minor})</button>`;
+      html += `<button class="filter-btn" data-filter="medium">Средние 5-15% (${sigCounts.medium})</button>`;
+      html += `<button class="filter-btn" data-filter="significant">Существ. 15-30% (${sigCounts.significant})</button>`;
+      html += `<button class="filter-btn" data-filter="critical">Критич. &gt;30% (${sigCounts.critical})</button>`;
+      html += `</div>`;
+
+      html += `<div class="eng-table-wrap"><table class="eng-detail-table" id="boq-detail-table">`;
       html += `<thead><tr>`;
       html += `<th>Позиция BOQ</th>`;
       html += `<th>Тип</th>`;
@@ -1166,12 +1244,14 @@ function App() {
       html += `<th>Комментарий инженера</th>`;
       html += `</tr></thead><tbody>`;
 
-      changes.slice(0, 15).forEach(c => {
+      changes.forEach(c => {
         const typeIcon = c.elementType.toLowerCase().includes('мат') ? '🧱' : '🔧';
         const diffCls = c.diff > 0 ? 'diff-up' : c.diff < 0 ? 'diff-down' : '';
+        const oldVal = c.changeType === 'new' ? 0 : (c.v1Price * c.v1Qty);
+        const significance = getSignificance(c.diff, oldVal);
         const rowCls = c.changeType === 'new' ? 'row-new' : c.changeType === 'removed' ? 'row-removed' : '';
 
-        html += `<tr class="${rowCls}">`;
+        html += `<tr class="${rowCls} sig-${significance}" data-significance="${significance}">`;
         html += `<td class="pos-name" title="${c.name}">${c.name}${c.name.length >= 35 ? '...' : ''}</td>`;
         html += `<td class="pos-type">${typeIcon} ${c.elementType.substring(0, 10)}</td>`;
         html += `<td class="pos-vals">${c.v1Price > 0 ? formatNumber(c.v1Price) + ' ₽' : '—'}<br><span class="qty">${c.v1Qty > 0 ? c.v1Qty.toFixed(1) + ' ' + c.v1Unit : '—'}</span></td>`;
@@ -1183,10 +1263,7 @@ function App() {
       });
 
       html += `</tbody></table></div>`;
-
-      if (changes.length > 15) {
-        html += `<div class="more-rows">... и ещё ${changes.length - 15} позиций</div>`;
-      }
+      html += `<div class="boq-filter-status" id="boq-filter-status">Показано: ${changes.length} из ${changes.length} позиций</div>`;
     }
 
     // Engineering conclusion
