@@ -1254,8 +1254,8 @@ function App() {
         html += `<tr class="${rowCls} sig-${significance}" data-significance="${significance}">`;
         html += `<td class="pos-name">${c.name}</td>`;
         html += `<td class="pos-type">${typeIcon}</td>`;
-        html += `<td class="pos-vals">${c.v1Price > 0 ? formatNumber(c.v1Price) + '₽' : '—'}<br><span class="qty">${c.v1Qty > 0 ? c.v1Qty.toFixed(1) : '—'}</span></td>`;
-        html += `<td class="pos-vals">${c.v2Price > 0 ? formatNumber(c.v2Price) + '₽' : '—'}<br><span class="qty">${c.v2Qty > 0 ? c.v2Qty.toFixed(1) : '—'}</span></td>`;
+        html += `<td class="pos-vals">${c.v1Price > 0 ? formatNumber(c.v1Price) + '₽' : '—'}<br><span class="qty">${c.v1Qty > 0 ? c.v1Qty.toFixed(1) + ' ' + c.v1Unit : '—'}</span></td>`;
+        html += `<td class="pos-vals">${c.v2Price > 0 ? formatNumber(c.v2Price) + '₽' : '—'}<br><span class="qty">${c.v2Qty > 0 ? c.v2Qty.toFixed(1) + ' ' + c.v2Unit : '—'}</span></td>`;
         html += `<td class="pos-diff ${diffCls}">${c.diff >= 0 ? '+' : ''}${formatCurrency(c.diff)}</td>`;
         html += `<td class="pos-reason">${c.reason}</td>`;
         html += `<td class="pos-comment">${c.comment}</td>`;
