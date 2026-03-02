@@ -431,6 +431,34 @@ function App() {
   const [analyticsSelectedWorkType, setAnalyticsSelectedWorkType] = useState<string>('');
   const [analyticsCostType, setAnalyticsCostType] = useState<'pzTotal' | 'kzTotal' | 'totalPerGBA'>('pzTotal');
 
+  // BOQ Analysis state
+  interface BOQItem {
+    id: string;
+    positionNumber: string;      // Номер позиции
+    constructionCost: string;    // Затрата на строительство
+    elementType: string;         // Тип элемента (мат, суб-мат, раб, суб-раб)
+    materialType: string;        // Тип материал
+    name: string;                // Наименование
+    unit: string;                // Ед. изм.
+    quantity: number;            // Количество заказчика
+    deliveryCost: number;        // Стоимость доставки
+    pricePerUnit: number;        // Цена за единицу
+    totalSum: number;            // Итоговая сумма
+  }
+
+  interface BOQFile {
+    id: string;
+    name: string;
+    linkedToFileId: string;      // Link to TenderFile
+    items: BOQItem[];
+    uploadedAt: string;
+  }
+
+  const [boqFiles, setBOQFiles] = useState<BOQFile[]>([]);
+  const [boqUploadingForFileId, setBOQUploadingForFileId] = useState<string | null>(null);
+  const [boqAnalysisResult, setBOQAnalysisResult] = useState<string | null>(null);
+  const boqFileInputRef = useRef<HTMLInputElement>(null);
+
   // Checklist page state
   const [checklistProjects, setChecklistProjects] = useState<ChecklistProject[]>([]);
   const [checklistFilter, setChecklistFilter] = useState<string>('all');
@@ -680,6 +708,221 @@ function App() {
 
   const formatNumber = (num: number): string => num.toLocaleString('ru-RU');
   const formatCurrency = (num: number): string => num.toLocaleString('ru-RU') + ' ₽';
+
+  // BOQ Parsing and Analysis Functions
+  const parseBOQExcel = async (file: File, linkedFileId: string): Promise<BOQFile | null> => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+
+      // Find header row (look for "Номер позиции" or similar)
+      let headerRowIndex = -1;
+      let columnMap: Record<string, number> = {};
+
+      for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+        const row = jsonData[i] as string[];
+        if (!row) continue;
+
+        const rowStr = row.join(' ').toLowerCase();
+        if (rowStr.includes('номер позиц') || rowStr.includes('затрата на строительство')) {
+          headerRowIndex = i;
+          // Map columns
+          row.forEach((cell, idx) => {
+            const cellStr = String(cell || '').toLowerCase();
+            if (cellStr.includes('номер позиц')) columnMap['positionNumber'] = idx;
+            if (cellStr.includes('затрата на строительство')) columnMap['constructionCost'] = idx;
+            if (cellStr.includes('тип элемент')) columnMap['elementType'] = idx;
+            if (cellStr.includes('тип материал')) columnMap['materialType'] = idx;
+            if (cellStr.includes('наименование')) columnMap['name'] = idx;
+            if (cellStr.includes('ед.') || cellStr.includes('ед изм')) columnMap['unit'] = idx;
+            if (cellStr.includes('количество')) columnMap['quantity'] = idx;
+            if (cellStr.includes('стоимость доставки')) columnMap['deliveryCost'] = idx;
+            if (cellStr.includes('цена за единиц')) columnMap['pricePerUnit'] = idx;
+            if (cellStr.includes('итоговая сумм')) columnMap['totalSum'] = idx;
+          });
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        console.warn('Could not find BOQ header row');
+        return null;
+      }
+
+      // Parse data rows
+      const items: BOQItem[] = [];
+      for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+        const row = jsonData[i] as (string | number)[];
+        if (!row || row.length === 0) continue;
+
+        const positionNumber = String(row[columnMap['positionNumber']] || '').trim();
+        const constructionCost = String(row[columnMap['constructionCost']] || '').trim();
+        const elementType = String(row[columnMap['elementType']] || '').trim();
+
+        // Skip empty rows
+        if (!positionNumber && !constructionCost && !elementType) continue;
+
+        items.push({
+          id: `boq-item-${i}`,
+          positionNumber,
+          constructionCost,
+          elementType,
+          materialType: String(row[columnMap['materialType']] || '').trim(),
+          name: String(row[columnMap['name']] || '').trim(),
+          unit: String(row[columnMap['unit']] || '').trim(),
+          quantity: Number(row[columnMap['quantity']]) || 0,
+          deliveryCost: Number(row[columnMap['deliveryCost']]) || 0,
+          pricePerUnit: Number(row[columnMap['pricePerUnit']]) || 0,
+          totalSum: Number(row[columnMap['totalSum']]) || 0,
+        });
+      }
+
+      return {
+        id: `boq-${Date.now()}`,
+        name: file.name,
+        linkedToFileId: linkedFileId,
+        items,
+        uploadedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error('Error parsing BOQ Excel:', error);
+      return null;
+    }
+  };
+
+  // Handle BOQ file upload
+  const handleBOQFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, linkedFileId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setBOQUploadingForFileId(linkedFileId);
+
+    const parsedBOQ = await parseBOQExcel(file, linkedFileId);
+    if (parsedBOQ) {
+      setBOQFiles(prev => {
+        // Replace if already exists for this file
+        const filtered = prev.filter(b => b.linkedToFileId !== linkedFileId);
+        return [...filtered, parsedBOQ];
+      });
+    }
+
+    setBOQUploadingForFileId(null);
+    if (e.target) e.target.value = '';
+  };
+
+  // Analyze BOQ differences and generate explanation
+  const analyzeBOQDifferences = (comparisonData: { id: string; label: string; value: number | null; calculationDate: string }[]) => {
+    if (comparisonData.length < 2 || !analyticsSelectedWorkType) {
+      setBOQAnalysisResult(null);
+      return;
+    }
+
+    // Get linked BOQ files for comparison items
+    const linkedBOQs = comparisonData.map(item => {
+      const boq = boqFiles.find(b => b.linkedToFileId === item.id);
+      return { ...item, boq };
+    });
+
+    // Check if we have BOQs for comparison
+    const boqsWithData = linkedBOQs.filter(l => l.boq && l.boq.items.length > 0);
+    if (boqsWithData.length < 2) {
+      setBOQAnalysisResult('Для детального анализа загрузите BOQ файлы для сравниваемых версий.');
+      return;
+    }
+
+    // Find items related to the selected work type
+    const workTypeClean = analyticsSelectedWorkType.replace(/^[■└\s]+/, '').trim();
+
+    let analysis = `📊 **Анализ различий для: ${workTypeClean}**\n\n`;
+
+    // Compare first two BOQs
+    const boq1 = boqsWithData[0];
+    const boq2 = boqsWithData[1];
+
+    // Find matching items by constructionCost field
+    const items1 = boq1.boq!.items.filter(item =>
+      item.constructionCost.toLowerCase().includes(workTypeClean.toLowerCase().substring(0, 20))
+    );
+    const items2 = boq2.boq!.items.filter(item =>
+      item.constructionCost.toLowerCase().includes(workTypeClean.toLowerCase().substring(0, 20))
+    );
+
+    // Categorize by element type
+    const materials1 = items1.filter(i => i.elementType.toLowerCase().includes('мат'));
+    const works1 = items1.filter(i => i.elementType.toLowerCase().includes('раб'));
+    const materials2 = items2.filter(i => i.elementType.toLowerCase().includes('мат'));
+    const works2 = items2.filter(i => i.elementType.toLowerCase().includes('раб'));
+
+    const totalMaterials1 = materials1.reduce((sum, i) => sum + i.totalSum, 0);
+    const totalWorks1 = works1.reduce((sum, i) => sum + i.totalSum, 0);
+    const totalMaterials2 = materials2.reduce((sum, i) => sum + i.totalSum, 0);
+    const totalWorks2 = works2.reduce((sum, i) => sum + i.totalSum, 0);
+
+    const materialDiff = totalMaterials2 - totalMaterials1;
+    const workDiff = totalWorks2 - totalWorks1;
+
+    analysis += `**${boq1.label}** vs **${boq2.label}**\n\n`;
+
+    // Value comparison
+    if (boq1.value !== null && boq2.value !== null) {
+      const valueDiff = boq2.value - boq1.value;
+      const valueDiffPercent = boq1.value !== 0 ? ((valueDiff / boq1.value) * 100).toFixed(1) : '0';
+      analysis += `💰 **Общая разница:** ${valueDiff >= 0 ? '+' : ''}${formatNumber(valueDiff)} (${valueDiff >= 0 ? '+' : ''}${valueDiffPercent}%)\n\n`;
+    }
+
+    // Materials analysis
+    analysis += `🧱 **Материалы:**\n`;
+    analysis += `• ${boq1.label}: ${formatCurrency(totalMaterials1)} (${materials1.length} позиций)\n`;
+    analysis += `• ${boq2.label}: ${formatCurrency(totalMaterials2)} (${materials2.length} позиций)\n`;
+    if (materialDiff !== 0) {
+      analysis += `• Разница: ${materialDiff >= 0 ? '+' : ''}${formatCurrency(materialDiff)}\n`;
+      if (materialDiff > 0) {
+        analysis += `  → _Увеличение стоимости материалов_\n`;
+      } else {
+        analysis += `  → _Снижение стоимости материалов_\n`;
+      }
+    }
+    analysis += `\n`;
+
+    // Works analysis
+    analysis += `🔧 **Работы:**\n`;
+    analysis += `• ${boq1.label}: ${formatCurrency(totalWorks1)} (${works1.length} позиций)\n`;
+    analysis += `• ${boq2.label}: ${formatCurrency(totalWorks2)} (${works2.length} позиций)\n`;
+    if (workDiff !== 0) {
+      analysis += `• Разница: ${workDiff >= 0 ? '+' : ''}${formatCurrency(workDiff)}\n`;
+      if (workDiff > 0) {
+        analysis += `  → _Увеличение стоимости работ_\n`;
+      } else {
+        analysis += `  → _Снижение стоимости работ_\n`;
+      }
+    }
+    analysis += `\n`;
+
+    // Determine main cause
+    analysis += `📝 **Вывод:**\n`;
+    if (Math.abs(materialDiff) > Math.abs(workDiff)) {
+      analysis += `Основная причина разницы — **изменение стоимости материалов** `;
+      analysis += `(${materialDiff >= 0 ? 'рост' : 'снижение'} на ${formatCurrency(Math.abs(materialDiff))}). `;
+    } else if (Math.abs(workDiff) > Math.abs(materialDiff)) {
+      analysis += `Основная причина разницы — **изменение стоимости работ** `;
+      analysis += `(${workDiff >= 0 ? 'рост' : 'снижение'} на ${formatCurrency(Math.abs(workDiff))}). `;
+    } else {
+      analysis += `Изменения распределены равномерно между материалами и работами. `;
+    }
+
+    // Additional insights
+    if (materials1.length !== materials2.length) {
+      analysis += `\n⚠️ Количество позиций материалов изменилось: ${materials1.length} → ${materials2.length}`;
+    }
+    if (works1.length !== works2.length) {
+      analysis += `\n⚠️ Количество позиций работ изменилось: ${works1.length} → ${works2.length}`;
+    }
+
+    setBOQAnalysisResult(analysis);
+  };
 
   // Checklist page functions
   const toggleChecklistProjectExpanded = (projectId: string) => {
@@ -2942,6 +3185,130 @@ function App() {
                   </div>
                 )}
 
+                {/* Step 5: BOQ Upload for detailed analysis */}
+                {analyticsSelectedWorkType && hasEnoughSelection && (
+                  <div className="analytics-section boq-upload-section">
+                    <h3>5. Загрузка BOQ (Весь ВОР) для детального анализа</h3>
+                    <p className="boq-upload-hint">
+                      Загрузите Excel-файлы BOQ для каждой версии, чтобы узнать причину разницы (материалы или работы)
+                    </p>
+
+                    {/* Hidden file input for BOQ */}
+                    <input
+                      ref={boqFileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        if (boqUploadingForFileId) {
+                          handleBOQFileUpload(e, boqUploadingForFileId);
+                        }
+                      }}
+                    />
+
+                    <div className="boq-upload-list">
+                      {analyticsCompareMode === 'versions' && selectedProjectForVersions ? (
+                        // Version mode - show selected files
+                        selectedProjectForVersions.files
+                          .filter(f => analyticsSelectedFiles.includes(f.id))
+                          .map(file => {
+                            const uploadedBOQ = boqFiles.find(b => b.linkedToFileId === file.id);
+                            return (
+                              <div key={file.id} className="boq-upload-item">
+                                <div className="boq-upload-info">
+                                  <span className="boq-file-label">📑 {file.name}</span>
+                                  <span className="boq-file-date">📅 {file.calculationDate}</span>
+                                </div>
+                                {uploadedBOQ ? (
+                                  <div className="boq-uploaded-status">
+                                    <span className="boq-success">✓ BOQ загружен</span>
+                                    <span className="boq-items-count">({uploadedBOQ.items.length} позиций)</span>
+                                    <button
+                                      className="boq-reupload-btn"
+                                      onClick={() => {
+                                        setBOQUploadingForFileId(file.id);
+                                        boqFileInputRef.current?.click();
+                                      }}
+                                    >
+                                      Заменить
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="boq-upload-btn"
+                                    onClick={() => {
+                                      setBOQUploadingForFileId(file.id);
+                                      boqFileInputRef.current?.click();
+                                    }}
+                                    disabled={boqUploadingForFileId === file.id}
+                                  >
+                                    {boqUploadingForFileId === file.id ? '⏳ Загрузка...' : '📤 Загрузить BOQ'}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })
+                      ) : analyticsCompareMode === 'projects' ? (
+                        // Project mode - show selected projects with their latest file
+                        tenderProjects
+                          .filter(p => analyticsSelectedProjects.includes(p.id))
+                          .map(project => {
+                            const latestFile = project.files[project.files.length - 1];
+                            if (!latestFile) return null;
+                            const uploadedBOQ = boqFiles.find(b => b.linkedToFileId === latestFile.id);
+                            return (
+                              <div key={project.id} className="boq-upload-item">
+                                <div className="boq-upload-info">
+                                  <span className="boq-file-label">📊 {project.name}</span>
+                                  <span className="boq-file-date">Файл: {latestFile.name}</span>
+                                </div>
+                                {uploadedBOQ ? (
+                                  <div className="boq-uploaded-status">
+                                    <span className="boq-success">✓ BOQ загружен</span>
+                                    <span className="boq-items-count">({uploadedBOQ.items.length} позиций)</span>
+                                    <button
+                                      className="boq-reupload-btn"
+                                      onClick={() => {
+                                        setBOQUploadingForFileId(latestFile.id);
+                                        boqFileInputRef.current?.click();
+                                      }}
+                                    >
+                                      Заменить
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="boq-upload-btn"
+                                    onClick={() => {
+                                      setBOQUploadingForFileId(latestFile.id);
+                                      boqFileInputRef.current?.click();
+                                    }}
+                                    disabled={boqUploadingForFileId === latestFile.id}
+                                  >
+                                    {boqUploadingForFileId === latestFile.id ? '⏳ Загрузка...' : '📤 Загрузить BOQ'}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })
+                      ) : null}
+                    </div>
+
+                    {/* Analyze button */}
+                    {boqFiles.length >= 2 && (
+                      <button
+                        className="boq-analyze-btn"
+                        onClick={() => {
+                          const comparisonData = getComparisonDataByMode();
+                          analyzeBOQDifferences(comparisonData);
+                        }}
+                      >
+                        🔍 Анализировать различия BOQ
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Comparison Results */}
                 {analyticsSelectedWorkType && comparisonData.length >= 2 && (
                   <div className="analytics-section">
@@ -3022,6 +3389,24 @@ function App() {
                             </div>
                           ));
                         })()}
+                      </div>
+                    )}
+
+                    {/* BOQ Analysis Results */}
+                    {boqAnalysisResult && (
+                      <div className="boq-analysis-result">
+                        <h4>📊 Анализ BOQ (Весь ВОР)</h4>
+                        <div className="boq-analysis-content">
+                          {boqAnalysisResult.split('\n').map((line, i) => {
+                            // Parse markdown-like formatting
+                            let formattedLine = line
+                              .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                              .replace(/_([^_]+)_/g, '<em>$1</em>');
+                            return (
+                              <p key={i} dangerouslySetInnerHTML={{ __html: formattedLine || '&nbsp;' }} />
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
