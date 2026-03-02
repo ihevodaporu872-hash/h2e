@@ -832,31 +832,43 @@ function App() {
     }
 
     const workTypeClean = analyticsSelectedWorkType.replace(/^[■└\s]+/, '').trim();
-    const sectionMatch = workTypeClean.match(/^(\d{2})\./);
-    const sectionNumber = sectionMatch ? sectionMatch[1] : '';
+    // Extract work type name without number prefix (e.g., "06. МОНОЛИТНЫЕ РАБОТЫ" -> "МОНОЛИТНЫЕ РАБОТЫ")
+    const workTypeNameOnly = workTypeClean.replace(/^\d{2}\.\s*/, '').trim();
 
     const boq1 = boqsWithData[0];
     const boq2 = boqsWithData[1];
 
-    // Strict matching by "Затрата на строительство" field - ONLY show items for selected work type
-    const findMatchingItems = (items: BOQItem[], workType: string, sectionNum: string): BOQItem[] => {
-      // Primary: Match by constructionCost field containing the work type or section number
+    // Match by "Затрата на строительство" field - compare work type names
+    // BOQ format: "МОНОЛИТНЫЕ РАБОТЫ / Балки / Здание" matches "06. МОНОЛИТНЫЕ РАБОТЫ"
+    const findMatchingItems = (items: BOQItem[], workTypeName: string): BOQItem[] => {
+      const searchName = workTypeName.toUpperCase();
+
       return items.filter(item => {
-        const costField = item.constructionCost.toLowerCase().trim();
-        const workTypeLower = workType.toLowerCase();
+        const costField = item.constructionCost.toUpperCase().trim();
 
-        // Match by section number prefix (e.g., "02." for "02. ЗЕМЛЯНЫЕ РАБОТЫ")
-        if (sectionNum && costField.startsWith(sectionNum + '.')) {
+        // Get first part before "/" separator (e.g., "МОНОЛИТНЫЕ РАБОТЫ" from "МОНОЛИТНЫЕ РАБОТЫ / Балки / Здание")
+        const firstPart = costField.split('/')[0].trim();
+
+        // Exact match of first part
+        if (firstPart === searchName) {
           return true;
         }
 
-        // Match by work type name
-        if (costField.includes(workTypeLower.substring(0, 20))) {
+        // First part starts with search name
+        if (firstPart.startsWith(searchName)) {
           return true;
         }
 
-        // Match by section number anywhere in constructionCost
-        if (sectionNum && costField.includes(sectionNum + '.')) {
+        // Search name starts with first part (for shorter BOQ names)
+        if (searchName.startsWith(firstPart) && firstPart.length > 5) {
+          return true;
+        }
+
+        // For sub-items like "06.01 Арматурные работы", check if main type matches
+        // Match words - all significant words must be present
+        const searchWords = searchName.split(/\s+/).filter(w => w.length > 3);
+        const costWords = firstPart.split(/\s+/);
+        if (searchWords.length > 0 && searchWords.every(sw => costWords.some(cw => cw.includes(sw) || sw.includes(cw)))) {
           return true;
         }
 
@@ -864,12 +876,12 @@ function App() {
       });
     };
 
-    const final1 = findMatchingItems(boq1.boq!.items, workTypeClean, sectionNumber);
-    const final2 = findMatchingItems(boq2.boq!.items, workTypeClean, sectionNumber);
+    const final1 = findMatchingItems(boq1.boq!.items, workTypeNameOnly);
+    const final2 = findMatchingItems(boq2.boq!.items, workTypeNameOnly);
 
     // If no items found for this work type, show message
     if (final1.length === 0 && final2.length === 0) {
-      setBOQAnalysisResult(`<div class="boq-no-data">Нет позиций BOQ для раздела "${workTypeClean}".<br>Проверьте поле "Затрата на строительство" в BOQ файлах.</div>`);
+      setBOQAnalysisResult(`<div class="boq-no-data">Нет позиций BOQ для "${workTypeNameOnly}".<br><small>Проверьте колонку "Затрата на строительство" в BOQ.<br>Ожидаемый формат: "${workTypeNameOnly} / подтип / объект"</small></div>`);
       return;
     }
 
