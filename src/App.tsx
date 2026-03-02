@@ -1233,15 +1233,15 @@ function App() {
       html += `<button class="filter-btn" data-filter="critical">Критич. &gt;30% (${sigCounts.critical})</button>`;
       html += `</div>`;
 
-      html += `<div class="eng-table-wrap"><table class="eng-detail-table" id="boq-detail-table">`;
+      html += `<div class="eng-table-wrap"><table class="eng-detail-table compact-cols" id="boq-detail-table">`;
       html += `<thead><tr>`;
-      html += `<th>Позиция BOQ</th>`;
-      html += `<th>Тип</th>`;
-      html += `<th>V1: Цена×Кол-во</th>`;
-      html += `<th>V2: Цена×Кол-во</th>`;
-      html += `<th>Δ Разница</th>`;
-      html += `<th>Причина</th>`;
-      html += `<th>Комментарий инженера</th>`;
+      html += `<th class="col-name">Позиция BOQ</th>`;
+      html += `<th class="col-type">Тип</th>`;
+      html += `<th class="col-price">Было</th>`;
+      html += `<th class="col-price">Стало</th>`;
+      html += `<th class="col-diff">Δ</th>`;
+      html += `<th class="col-reason">Причина</th>`;
+      html += `<th class="col-comment">Комментарий</th>`;
       html += `</tr></thead><tbody>`;
 
       changes.forEach(c => {
@@ -1252,13 +1252,13 @@ function App() {
         const rowCls = c.changeType === 'new' ? 'row-new' : c.changeType === 'removed' ? 'row-removed' : '';
 
         html += `<tr class="${rowCls} sig-${significance}" data-significance="${significance}">`;
-        html += `<td class="pos-name" title="${c.name}">${c.name}${c.name.length >= 35 ? '...' : ''}</td>`;
-        html += `<td class="pos-type">${typeIcon} ${c.elementType.substring(0, 10)}</td>`;
-        html += `<td class="pos-vals">${c.v1Price > 0 ? formatNumber(c.v1Price) + ' ₽' : '—'}<br><span class="qty">${c.v1Qty > 0 ? c.v1Qty.toFixed(1) + ' ' + c.v1Unit : '—'}</span></td>`;
-        html += `<td class="pos-vals">${c.v2Price > 0 ? formatNumber(c.v2Price) + ' ₽' : '—'}<br><span class="qty">${c.v2Qty > 0 ? c.v2Qty.toFixed(1) + ' ' + c.v2Unit : '—'}</span></td>`;
-        html += `<td class="${diffCls}">${c.diff >= 0 ? '+' : ''}${formatCurrency(c.diff)}</td>`;
-        html += `<td class="reason">${c.reason}</td>`;
-        html += `<td class="comment">${c.comment}</td>`;
+        html += `<td class="pos-name">${c.name}</td>`;
+        html += `<td class="pos-type">${typeIcon}</td>`;
+        html += `<td class="pos-vals">${c.v1Price > 0 ? formatNumber(c.v1Price) + '₽' : '—'}<br><span class="qty">${c.v1Qty > 0 ? c.v1Qty.toFixed(1) : '—'}</span></td>`;
+        html += `<td class="pos-vals">${c.v2Price > 0 ? formatNumber(c.v2Price) + '₽' : '—'}<br><span class="qty">${c.v2Qty > 0 ? c.v2Qty.toFixed(1) : '—'}</span></td>`;
+        html += `<td class="pos-diff ${diffCls}">${c.diff >= 0 ? '+' : ''}${formatCurrency(c.diff)}</td>`;
+        html += `<td class="pos-reason">${c.reason}</td>`;
+        html += `<td class="pos-comment">${c.comment}</td>`;
         html += `</tr>`;
       });
 

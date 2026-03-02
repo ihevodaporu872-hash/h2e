@@ -3387,21 +3387,62 @@ body {
 }
 
 .eng-detail-table .pos-name {
-  max-width: 150px;
   font-weight: 500;
   color: var(--text-primary);
+  word-break: break-word;
 }
 
 .eng-detail-table .pos-type {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
-  white-space: nowrap;
+  text-align: center;
+  width: 30px;
+  min-width: 30px;
 }
 
 .eng-detail-table .pos-vals {
   font-family: 'SF Mono', monospace;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   white-space: nowrap;
+  text-align: right;
+  width: 75px;
+  min-width: 75px;
+}
+
+.eng-detail-table .pos-diff {
+  font-family: 'SF Mono', monospace;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  text-align: right;
+  width: 90px;
+  min-width: 90px;
+}
+
+.eng-detail-table .pos-reason {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  width: 120px;
+  min-width: 100px;
+}
+
+.eng-detail-table .pos-comment {
+  font-size: 0.65rem;
+  color: var(--primary);
+  width: 150px;
+  min-width: 120px;
+  line-height: 1.3;
+}
+
+/* Compact column headers */
+.eng-detail-table.compact-cols .col-type,
+.eng-detail-table.compact-cols .col-price,
+.eng-detail-table.compact-cols .col-diff {
+  text-align: center;
+  padding: 0.5rem 0.3rem;
+}
+
+.eng-detail-table.compact-cols .col-name {
+  width: auto;
 }
 
 .eng-detail-table .pos-vals .qty {
@@ -3420,16 +3461,15 @@ body {
   font-weight: 600;
 }
 
+/* Legacy reason/comment classes - kept for compatibility */
 .eng-detail-table .reason {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-secondary);
-  max-width: 120px;
 }
 
 .eng-detail-table .comment {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   color: var(--primary);
-  max-width: 180px;
   line-height: 1.3;
 }
 
