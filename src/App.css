@@ -3394,10 +3394,11 @@ body {
 }
 
 .eng-detail-table .pos-type {
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
   text-align: center;
-  width: 45px;
+  white-space: nowrap;
+  width: 65px;
 }
 
 .eng-detail-table .pos-vals {
@@ -3433,7 +3434,7 @@ body {
 /* Column headers alignment */
 .eng-detail-table .col-type {
   text-align: center;
-  width: 45px;
+  width: 65px;
 }
 
 .eng-detail-table .col-price {
