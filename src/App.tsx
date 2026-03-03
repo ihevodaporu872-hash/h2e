@@ -1272,33 +1272,105 @@ function App() {
       html += `<div class="boq-filter-status" id="boq-filter-status">Показано: ${changes.length} из ${changes.length} позиций</div>`;
     }
 
-    // Engineering conclusion
+    // Engineering conclusion - PTO Engineer Analysis
     html += `<div class="eng-conclusion">`;
     html += `<div class="concl-title">📝 Заключение инженера ПТО:</div>`;
-    html += `<div class="concl-text">`;
 
-    if (Math.abs(matDiff) > Math.abs(workDiff) * 2) {
-      html += `Основная причина расхождения — <strong>изменение стоимости материалов</strong> (${matDiff >= 0 ? 'рост' : 'снижение'} на ${formatCurrency(Math.abs(matDiff))}). `;
-      if (newCount > 0) html += `Выявлено ${newCount} новых позиций материалов. `;
-      html += `Рекомендуется проверить актуальность спецификаций и ценовых предложений поставщиков.`;
-    } else if (Math.abs(workDiff) > Math.abs(matDiff) * 2) {
-      html += `Основная причина расхождения — <strong>изменение стоимости работ</strong> (${workDiff >= 0 ? 'рост' : 'снижение'} на ${formatCurrency(Math.abs(workDiff))}). `;
-      html += `Возможные причины: корректировка технологии, изменение расценок, уточнение объёмов по РД. `;
-      html += `Рекомендуется запросить детализацию ТКП у подрядчика.`;
-    } else if (newCount > removedCount * 2) {
-      html += `Значительное количество <strong>новых позиций</strong> (+${newCount}). `;
-      html += `Причины: расширение объёма работ, детализация ВОР, изменения по проекту. `;
-      html += `Проверить соответствие дополнений проектной документации.`;
-    } else if (removedCount > newCount * 2) {
-      html += `Значительное количество <strong>удалённых позиций</strong> (-${removedCount}). `;
-      html += `Возможно: оптимизация ВОР, объединение позиций, исключение работ из объёма. `;
-      html += `Убедиться в корректности исключений.`;
+    // 1. Section Summary
+    html += `<div class="concl-section">`;
+    html += `<div class="concl-subtitle">1. Резюме по разделу</div>`;
+    html += `<div class="concl-text">`;
+    const changeDirection = totalDiff > 0 ? 'удорожание' : totalDiff < 0 ? 'удешевление' : 'без изменений';
+    const totalPct = Math.abs(totalDiff / (totalMat1 + totalWork1) * 100).toFixed(1);
+    const changeLevel = parseFloat(totalPct) > 30 ? 'критическое' : parseFloat(totalPct) > 15 ? 'существенное' : parseFloat(totalPct) > 5 ? 'умеренное' : 'незначительное';
+    html += `Раздел "${workTypeClean}": <strong>${changeDirection}</strong> на ${formatCurrency(Math.abs(totalDiff))} (${totalPct}%). `;
+    html += `Уровень изменений: <strong>${changeLevel}</strong>. `;
+    html += `Позиций: ${changes.length} (новых: +${newCount}, удалено: -${removedCount}, изменено: ~${changedCount}).`;
+    html += `</div></div>`;
+
+    // 2. Top Impact Positions
+    if (changes.length > 0) {
+      const sortedByImpact = [...changes].sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+      const top5 = sortedByImpact.slice(0, 5);
+      const top5Total = top5.reduce((sum, c) => sum + Math.abs(c.diff), 0);
+      const totalAbsDiff = changes.reduce((sum, c) => sum + Math.abs(c.diff), 0);
+      const top5Pct = totalAbsDiff > 0 ? ((top5Total / totalAbsDiff) * 100).toFixed(0) : '0';
+
+      html += `<div class="concl-section">`;
+      html += `<div class="concl-subtitle">2. Ключевые позиции влияния (${top5Pct}% от общего Δ)</div>`;
+      html += `<div class="concl-top-list">`;
+      top5.forEach((c, i) => {
+        const pctOfTotal = totalAbsDiff > 0 ? ((Math.abs(c.diff) / totalAbsDiff) * 100).toFixed(1) : '0';
+        html += `<div class="top-item ${c.diff > 0 ? 'up' : 'down'}">`;
+        html += `<span class="top-num">${i + 1}.</span>`;
+        html += `<span class="top-name">${c.name.substring(0, 40)}${c.name.length > 40 ? '...' : ''}</span>`;
+        html += `<span class="top-diff">${c.diff >= 0 ? '+' : ''}${formatCurrency(c.diff)}</span>`;
+        html += `<span class="top-pct">(${pctOfTotal}%)</span>`;
+        html += `</div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    // 3. Materials vs Works
+    html += `<div class="concl-section">`;
+    html += `<div class="concl-subtitle">3. Материалы vs Работы</div>`;
+    html += `<div class="concl-breakdown">`;
+    const matPctContrib = Math.abs(totalDiff) > 0 ? ((Math.abs(matDiff) / (Math.abs(matDiff) + Math.abs(workDiff))) * 100).toFixed(0) : '0';
+    const workPctContrib = Math.abs(totalDiff) > 0 ? ((Math.abs(workDiff) / (Math.abs(matDiff) + Math.abs(workDiff))) * 100).toFixed(0) : '0';
+    html += `<div class="breakdown-item mat">🧱 Материалы: <strong>${matDiff >= 0 ? '+' : ''}${formatCurrency(matDiff)}</strong> (${matPctContrib}% вклада)</div>`;
+    html += `<div class="breakdown-item work">🔧 Работы: <strong>${workDiff >= 0 ? '+' : ''}${formatCurrency(workDiff)}</strong> (${workPctContrib}% вклада)</div>`;
+    const mainDriver = Math.abs(matDiff) > Math.abs(workDiff) ? 'материалы' : 'работы';
+    html += `<div class="breakdown-conclusion">Основной драйвер изменений: <strong>${mainDriver}</strong></div>`;
+    html += `</div></div>`;
+
+    // 4. Commercial Risks
+    const risks: string[] = [];
+    const criticalChanges = changes.filter(c => {
+      const oldVal = c.changeType === 'new' ? 0 : (c.v1Price * c.v1Qty);
+      if (oldVal === 0) return Math.abs(c.diff) > 500000;
+      return Math.abs(c.diff / oldVal) > 0.3;
+    });
+    if (criticalChanges.length > 0) risks.push(`${criticalChanges.length} позиций с критическим изменением (>30%)`);
+    if (newCount > 5) risks.push(`Значительное количество новых позиций (+${newCount})`);
+    const largeNewPositions = changes.filter(c => c.changeType === 'new' && c.diff > 500000);
+    if (largeNewPositions.length > 0) risks.push(`${largeNewPositions.length} крупных новых позиций (>500K ₽)`);
+    if (removedCount > newCount && Math.abs(totalDiff) > 0) risks.push(`Удалено позиций больше, чем добавлено — проверить объём`);
+
+    html += `<div class="concl-section">`;
+    html += `<div class="concl-subtitle">4. Коммерческие риски</div>`;
+    if (risks.length > 0) {
+      html += `<div class="concl-risks">`;
+      risks.forEach(r => {
+        html += `<div class="risk-item">⚠️ ${r}</div>`;
+      });
+      html += `</div>`;
     } else {
-      html += `Изменения <strong>распределены между материалами и работами</strong>. `;
-      html += `Материалы: ${matDiff >= 0 ? '+' : ''}${formatCurrency(matDiff)}, Работы: ${workDiff >= 0 ? '+' : ''}${formatCurrency(workDiff)}. `;
-      html += `Рекомендуется построчная сверка с предыдущей версией ВОР.`;
+      html += `<div class="concl-text no-risks">✅ Критических коммерческих рисков не выявлено</div>`;
+    }
+    html += `</div>`;
+
+    // 5. Recommendation
+    html += `<div class="concl-section">`;
+    html += `<div class="concl-subtitle">5. Рекомендация</div>`;
+    html += `<div class="concl-recommendation">`;
+    if (parseFloat(totalPct) > 20) {
+      html += `<strong>Для переговоров:</strong> Запросить детализацию по топ-5 позициям. `;
+      if (Math.abs(matDiff) > Math.abs(workDiff)) {
+        html += `Проверить ценовые предложения поставщиков материалов. `;
+      } else {
+        html += `Запросить обоснование расценок и объёмов работ. `;
+      }
+      if (newCount > 3) html += `Уточнить основание для добавления ${newCount} новых позиций.`;
+    } else if (parseFloat(totalPct) > 5) {
+      html += `<strong>Внутренний анализ:</strong> Провести построчную сверку изменённых позиций. `;
+      html += `Проверить соответствие объёмов проектной документации.`;
+    } else {
+      html += `<strong>Стандартная процедура:</strong> Изменения в пределах допустимого. `;
+      html += `Рекомендуется выборочная проверка крупных позиций.`;
     }
     html += `</div></div>`;
+
+    html += `</div>`;
 
     html += `</div>`;
 

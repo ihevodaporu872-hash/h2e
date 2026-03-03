@@ -3530,28 +3530,172 @@ body {
   border-top: 1px solid var(--border);
 }
 
-/* Engineering conclusion */
+/* Engineering conclusion - PTO Analysis */
 .eng-conclusion {
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.03) 0%, rgba(139, 92, 246, 0.03) 100%);
   border-top: 1px solid var(--border);
 }
 
 .concl-title {
-  font-weight: 600;
-  font-size: 0.8rem;
+  font-weight: 700;
+  font-size: 0.9rem;
   color: var(--text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.concl-section {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px dashed var(--border-light);
+}
+
+.concl-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.concl-subtitle {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   margin-bottom: 0.5rem;
 }
 
 .concl-text {
   font-size: 0.8rem;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--text-secondary);
 }
 
 .concl-text strong {
   color: var(--primary);
+}
+
+.concl-text.no-risks {
+  color: var(--success);
+}
+
+/* Top impact positions */
+.concl-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.top-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-hover);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.top-item.up {
+  border-left: 3px solid #ef4444;
+}
+
+.top-item.down {
+  border-left: 3px solid #10b981;
+}
+
+.top-num {
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 20px;
+}
+
+.top-name {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.top-diff {
+  font-family: 'SF Mono', monospace;
+  font-weight: 600;
+}
+
+.top-item.up .top-diff {
+  color: #ef4444;
+}
+
+.top-item.down .top-diff {
+  color: #10b981;
+}
+
+.top-pct {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  min-width: 45px;
+  text-align: right;
+}
+
+/* Materials vs Works breakdown */
+.concl-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.breakdown-item {
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-hover);
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.breakdown-item.mat {
+  border-left: 3px solid #3b82f6;
+}
+
+.breakdown-item.work {
+  border-left: 3px solid #a855f7;
+}
+
+.breakdown-conclusion {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 0.3rem;
+  padding-left: 0.5rem;
+}
+
+/* Risks */
+.concl-risks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.risk-item {
+  padding: 0.4rem 0.6rem;
+  background: rgba(239, 68, 68, 0.08);
+  border-left: 3px solid #ef4444;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+}
+
+/* Recommendation */
+.concl-recommendation {
+  padding: 0.6rem 0.8rem;
+  background: rgba(59, 130, 246, 0.08);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.concl-recommendation strong {
+  color: var(--primary);
+  display: block;
+  margin-bottom: 0.25rem;
 }
 
 .boq-no-data {
