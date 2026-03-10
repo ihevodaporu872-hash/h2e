@@ -1285,7 +1285,14 @@ function App() {
         sigCounts[sig]++;
       });
 
-      html += `<div class="eng-table-title">Детальный анализ позиций BOQ (${changes.length} позиций)</div>`;
+      // Collapsible detail section
+      html += `<div class="boq-detail-collapsible">`;
+      html += `<button class="boq-detail-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
+      html += `<span class="toggle-icon">▶</span>`;
+      html += `<span class="toggle-text">Детальный анализ позиций BOQ (${changes.length} позиций)</span>`;
+      html += `<span class="toggle-hint">Нажмите для просмотра детализации</span>`;
+      html += `</button>`;
+      html += `<div class="boq-detail-content">`;
 
       // Filter panel
       html += `<div class="boq-filter-panel" id="boq-filter-panel">`;
@@ -1334,6 +1341,8 @@ function App() {
 
       html += `</tbody></table></div>`;
       html += `<div class="boq-filter-status" id="boq-filter-status">Показано: ${changes.length} из ${changes.length} позиций</div>`;
+      html += `</div>`; // Close boq-detail-content
+      html += `</div>`; // Close boq-detail-collapsible
     }
 
     // Engineering conclusion - PTO Engineer Analysis

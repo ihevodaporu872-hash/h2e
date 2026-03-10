@@ -4393,3 +4393,69 @@ body {
 
 .abnormal-pct.up { color: #ef4444; }
 .abnormal-pct.down { color: #10b981; }
+
+/* ==========================================
+   COLLAPSIBLE BOQ DETAIL SECTION
+   ========================================== */
+
+.boq-detail-collapsible {
+  margin: 1.5rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.boq-detail-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-hover);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.boq-detail-toggle:hover {
+  background: var(--bg-tertiary);
+}
+
+.boq-detail-toggle .toggle-icon {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: transform 0.25s ease;
+}
+
+.boq-detail-collapsible.expanded .toggle-icon {
+  transform: rotate(90deg);
+}
+
+.boq-detail-toggle .toggle-text {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.boq-detail-toggle .toggle-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.boq-detail-collapsible.expanded .toggle-hint {
+  display: none;
+}
+
+.boq-detail-content {
+  display: none;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.boq-detail-collapsible.expanded .boq-detail-content {
+  display: block;
+}
