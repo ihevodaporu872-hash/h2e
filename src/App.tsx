@@ -2302,7 +2302,7 @@ function App() {
       <div className="modal-overlay" onClick={resetUploadModal}>
         <div className="upload-modal upload-modal-large" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
-            <h2>Импорт BOQ из Excel</h2>
+            <h2>Импорт «Затраты на строительство»</h2>
             <button className="modal-close" onClick={resetUploadModal}>×</button>
           </div>
 
@@ -2345,11 +2345,11 @@ function App() {
                         </svg>
                       </div>
                       <div className="dropzone-text">
-                        <p className="dropzone-title">Перетащите файл сюда</p>
+                        <p className="dropzone-title">Перетащите файл «Затраты на строительство»</p>
                         <p className="dropzone-subtitle">или нажмите для выбора</p>
                       </div>
                       <div className="dropzone-formats">
-                        Поддерживаемые форматы: .xlsx, .xls, .csv (до 10 МБ)
+                        Формат: .xlsx, .xls, .csv (до 10 МБ)
                       </div>
                     </div>
                     <input
@@ -3184,7 +3184,7 @@ function App() {
           <div className="empty-state">
             <div className="empty-state-icon">📊</div>
             <h3>Нет загруженных данных</h3>
-            <p>Импортируйте Excel файл для отображения показателей</p>
+            <p>Импортируйте файл <strong>«Затраты на строительство»</strong> (Excel)</p>
             <button className="btn-primary" onClick={() => setShowUploadModal(true)}>
               <span>📥</span> Импорт Excel
             </button>
