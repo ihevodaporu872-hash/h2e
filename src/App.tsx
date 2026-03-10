@@ -3483,6 +3483,156 @@ function App() {
           totalPerGBA: 'Итого за ед. общей площади',
         };
 
+        // Aggregated main scope comparison (01, 02, 03... not 01.01, 01.02)
+        const getAggregatedScopeComparison = () => {
+          interface ScopeData {
+            scopeNum: string;
+            scopeName: string;
+            laborA: number;
+            materialA: number;
+            totalA: number;
+            laborB: number;
+            materialB: number;
+            totalB: number;
+          }
+
+          const aggregateFileData = (file: TenderFile): Map<string, ScopeData> => {
+            const scopeMap = new Map<string, ScopeData>();
+
+            file.sections.forEach(section => {
+              section.rows.forEach(row => {
+                // Extract main scope number (01, 02, etc.) from row name
+                const match = row.name.match(/^(\d{1,2})\./);
+                if (!match) return;
+
+                const scopeNum = match[1].padStart(2, '0');
+
+                // Check if this is a main scope (e.g., "01. ОРГАНИЗАЦИЯ") or sub-item (e.g., "01.01. Подсистема")
+                const isMainScope = /^\d{1,2}\.\s+[А-ЯA-Z]/.test(row.name) && !row.name.match(/^\d{1,2}\.\d{1,2}/);
+
+                if (!scopeMap.has(scopeNum)) {
+                  scopeMap.set(scopeNum, {
+                    scopeNum,
+                    scopeName: isMainScope ? row.name : `${scopeNum}. Раздел ${scopeNum}`,
+                    laborA: 0, materialA: 0, totalA: 0,
+                    laborB: 0, materialB: 0, totalB: 0,
+                  });
+                }
+
+                const scope = scopeMap.get(scopeNum)!;
+
+                // Update scope name if this is the main scope row
+                if (isMainScope) {
+                  scope.scopeName = row.name;
+                }
+
+                // Aggregate values based on cost type
+                if (analyticsCostType === 'pzTotal' || analyticsCostType === 'totalPerGBA') {
+                  scope.laborA += row.pzLabor || 0;
+                  scope.materialA += row.pzMaterial || 0;
+                  scope.totalA += row.pzTotal || 0;
+                } else {
+                  scope.laborA += row.kzLabor || 0;
+                  scope.materialA += row.kzMaterial || 0;
+                  scope.totalA += row.kzTotal || 0;
+                }
+              });
+            });
+
+            return scopeMap;
+          };
+
+          // Get files to compare
+          let fileA: TenderFile | undefined;
+          let fileB: TenderFile | undefined;
+          let labelA = 'Тендер A';
+          let labelB = 'Тендер B';
+
+          if (analyticsCompareMode === 'versions' && selectedProjectForVersions) {
+            const selectedFiles = selectedProjectForVersions.files.filter(f => analyticsSelectedFiles.includes(f.id));
+            if (selectedFiles.length >= 2) {
+              fileA = selectedFiles[0];
+              fileB = selectedFiles[1];
+              labelA = fileA.name;
+              labelB = fileB.name;
+            }
+          } else if (analyticsCompareMode === 'projects') {
+            const selectedProjs = tenderProjects.filter(p => analyticsSelectedProjects.includes(p.id));
+            if (selectedProjs.length >= 2) {
+              fileA = selectedProjs[0].files[0];
+              fileB = selectedProjs[1].files[0];
+              labelA = selectedProjs[0].name;
+              labelB = selectedProjs[1].name;
+            }
+          }
+
+          if (!fileA || !fileB) return null;
+
+          const dataA = aggregateFileData(fileA);
+          const dataB = aggregateFileData(fileB);
+
+          // Merge data from both files
+          const allScopes = new Set([...dataA.keys(), ...dataB.keys()]);
+          const comparison: Array<ScopeData & { diffAbsolute: number; diffPercent: number; isAbnormal: boolean }> = [];
+
+          allScopes.forEach(scopeNum => {
+            const a = dataA.get(scopeNum);
+            const b = dataB.get(scopeNum);
+
+            const scopeData = {
+              scopeNum,
+              scopeName: a?.scopeName || b?.scopeName || `${scopeNum}. Раздел`,
+              laborA: a?.laborA || 0,
+              materialA: a?.materialA || 0,
+              totalA: a?.totalA || 0,
+              laborB: b?.laborA || 0, // Note: we stored B's data in laborA of its map
+              materialB: b?.materialA || 0,
+              totalB: b?.totalA || 0,
+              diffAbsolute: 0,
+              diffPercent: 0,
+              isAbnormal: false,
+            };
+
+            // Recalculate B's values from its own aggregation
+            if (b) {
+              scopeData.laborB = b.laborA;
+              scopeData.materialB = b.materialA;
+              scopeData.totalB = b.totalA;
+            }
+
+            scopeData.diffAbsolute = scopeData.totalB - scopeData.totalA;
+            scopeData.diffPercent = scopeData.totalA !== 0
+              ? ((scopeData.totalB - scopeData.totalA) / scopeData.totalA) * 100
+              : (scopeData.totalB !== 0 ? 100 : 0);
+            scopeData.isAbnormal = Math.abs(scopeData.diffPercent) > 20;
+
+            comparison.push(scopeData);
+          });
+
+          // Sort by scope number
+          comparison.sort((a, b) => a.scopeNum.localeCompare(b.scopeNum));
+
+          // Calculate totals
+          const totals = comparison.reduce((acc, s) => ({
+            laborA: acc.laborA + s.laborA,
+            materialA: acc.materialA + s.materialA,
+            totalA: acc.totalA + s.totalA,
+            laborB: acc.laborB + s.laborB,
+            materialB: acc.materialB + s.materialB,
+            totalB: acc.totalB + s.totalB,
+          }), { laborA: 0, materialA: 0, totalA: 0, laborB: 0, materialB: 0, totalB: 0 });
+
+          // Find top 3 cost drivers
+          const topDrivers = [...comparison]
+            .sort((a, b) => Math.abs(b.diffAbsolute) - Math.abs(a.diffAbsolute))
+            .slice(0, 3);
+
+          // Find abnormal deviations
+          const abnormalScopes = comparison.filter(s => s.isAbnormal);
+
+          return { comparison, totals, topDrivers, abnormalScopes, labelA, labelB };
+        };
+
         // Check if enough items are selected for comparison
         const hasEnoughSelection = analyticsCompareMode === 'projects'
           ? analyticsSelectedProjects.length >= 2
@@ -3491,6 +3641,8 @@ function App() {
         const selectionCount = analyticsCompareMode === 'projects'
           ? analyticsSelectedProjects.length
           : analyticsSelectedFiles.length;
+
+        const aggregatedData = hasEnoughSelection ? getAggregatedScopeComparison() : null;
 
         return (
           <div className="page-content">
@@ -3912,6 +4064,116 @@ function App() {
                     {/* BOQ Analysis Results */}
                     {boqAnalysisResult && (
                       <div className="boq-analysis-result" dangerouslySetInnerHTML={{ __html: boqAnalysisResult }} />
+                    )}
+
+                    {/* Aggregated Main Scope Comparison Table */}
+                    {aggregatedData && (
+                      <div className="aggregated-scope-section">
+                        <h3>📊 Сводная таблица по разделам</h3>
+                        <p className="section-desc">Агрегированное сравнение по основным разделам (01-21)</p>
+
+                        <div className="scope-comparison-table-wrap">
+                          <table className="scope-comparison-table">
+                            <thead>
+                              <tr>
+                                <th className="col-num">№</th>
+                                <th className="col-scope">Раздел</th>
+                                <th className="col-val">Работы ({aggregatedData.labelA})</th>
+                                <th className="col-val">Мат. ({aggregatedData.labelA})</th>
+                                <th className="col-val">Итого ({aggregatedData.labelA})</th>
+                                <th className="col-val">Работы ({aggregatedData.labelB})</th>
+                                <th className="col-val">Мат. ({aggregatedData.labelB})</th>
+                                <th className="col-val">Итого ({aggregatedData.labelB})</th>
+                                <th className="col-diff">Δ Итого</th>
+                                <th className="col-pct">Δ %</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {aggregatedData.comparison.map(scope => (
+                                <tr key={scope.scopeNum} className={scope.isAbnormal ? 'abnormal-row' : ''}>
+                                  <td className="scope-num">{scope.scopeNum}</td>
+                                  <td className="scope-name" title={scope.scopeName}>
+                                    {scope.scopeName.length > 35 ? scope.scopeName.substring(0, 35) + '...' : scope.scopeName}
+                                  </td>
+                                  <td className="val">{scope.laborA.toLocaleString('ru-RU')}</td>
+                                  <td className="val">{scope.materialA.toLocaleString('ru-RU')}</td>
+                                  <td className="val total">{scope.totalA.toLocaleString('ru-RU')}</td>
+                                  <td className="val">{scope.laborB.toLocaleString('ru-RU')}</td>
+                                  <td className="val">{scope.materialB.toLocaleString('ru-RU')}</td>
+                                  <td className="val total">{scope.totalB.toLocaleString('ru-RU')}</td>
+                                  <td className={`diff ${scope.diffAbsolute > 0 ? 'up' : scope.diffAbsolute < 0 ? 'down' : ''}`}>
+                                    {scope.diffAbsolute > 0 ? '+' : ''}{scope.diffAbsolute.toLocaleString('ru-RU')}
+                                  </td>
+                                  <td className={`pct ${scope.isAbnormal ? 'abnormal' : ''} ${scope.diffPercent > 0 ? 'up' : scope.diffPercent < 0 ? 'down' : ''}`}>
+                                    {scope.diffPercent > 0 ? '+' : ''}{scope.diffPercent.toFixed(1)}%
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="totals-row">
+                                <td></td>
+                                <td className="scope-name"><strong>ИТОГО</strong></td>
+                                <td className="val">{aggregatedData.totals.laborA.toLocaleString('ru-RU')}</td>
+                                <td className="val">{aggregatedData.totals.materialA.toLocaleString('ru-RU')}</td>
+                                <td className="val total">{aggregatedData.totals.totalA.toLocaleString('ru-RU')}</td>
+                                <td className="val">{aggregatedData.totals.laborB.toLocaleString('ru-RU')}</td>
+                                <td className="val">{aggregatedData.totals.materialB.toLocaleString('ru-RU')}</td>
+                                <td className="val total">{aggregatedData.totals.totalB.toLocaleString('ru-RU')}</td>
+                                <td className={`diff ${(aggregatedData.totals.totalB - aggregatedData.totals.totalA) > 0 ? 'up' : 'down'}`}>
+                                  <strong>
+                                    {(aggregatedData.totals.totalB - aggregatedData.totals.totalA) > 0 ? '+' : ''}
+                                    {(aggregatedData.totals.totalB - aggregatedData.totals.totalA).toLocaleString('ru-RU')}
+                                  </strong>
+                                </td>
+                                <td className="pct">
+                                  <strong>
+                                    {aggregatedData.totals.totalA !== 0
+                                      ? `${((aggregatedData.totals.totalB - aggregatedData.totals.totalA) / aggregatedData.totals.totalA * 100).toFixed(1)}%`
+                                      : '-'}
+                                  </strong>
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+
+                        {/* Analytics Summary */}
+                        <div className="scope-analytics-summary">
+                          {/* Top 3 Cost Drivers */}
+                          <div className="summary-card drivers">
+                            <h4>🔝 Топ-3 драйвера изменений</h4>
+                            <div className="driver-list">
+                              {aggregatedData.topDrivers.map((d, i) => (
+                                <div key={d.scopeNum} className={`driver-item ${d.diffAbsolute > 0 ? 'up' : 'down'}`}>
+                                  <span className="driver-rank">{i + 1}.</span>
+                                  <span className="driver-name">{d.scopeName.substring(0, 30)}</span>
+                                  <span className="driver-diff">
+                                    {d.diffAbsolute > 0 ? '+' : ''}{(d.diffAbsolute / 1000000).toFixed(2)}M ₽
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Abnormal Deviations */}
+                          {aggregatedData.abnormalScopes.length > 0 && (
+                            <div className="summary-card abnormal">
+                              <h4>⚠️ Аномальные отклонения (&gt;20%)</h4>
+                              <div className="abnormal-list">
+                                {aggregatedData.abnormalScopes.map(s => (
+                                  <div key={s.scopeNum} className="abnormal-item">
+                                    <span className="abnormal-name">{s.scopeNum}. {s.scopeName.substring(4, 25)}...</span>
+                                    <span className={`abnormal-pct ${s.diffPercent > 0 ? 'up' : 'down'}`}>
+                                      {s.diffPercent > 0 ? '+' : ''}{s.diffPercent.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}

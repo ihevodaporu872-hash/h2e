@@ -4197,3 +4197,199 @@ body {
   border-top: 1px solid var(--border);
   margin-top: 0.5rem;
 }
+
+/* ==========================================
+   AGGREGATED SCOPE COMPARISON TABLE
+   ========================================== */
+
+.aggregated-scope-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+}
+
+.aggregated-scope-section h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.aggregated-scope-section .section-desc {
+  margin: 0 0 1.5rem 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.scope-comparison-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+}
+
+.scope-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.scope-comparison-table th {
+  padding: 0.6rem 0.5rem;
+  text-align: left;
+  background: var(--bg-hover);
+  font-weight: 600;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+
+.scope-comparison-table th.col-num { width: 40px; text-align: center; }
+.scope-comparison-table th.col-scope { min-width: 180px; }
+.scope-comparison-table th.col-val { text-align: right; width: 90px; }
+.scope-comparison-table th.col-diff { text-align: right; width: 100px; }
+.scope-comparison-table th.col-pct { text-align: right; width: 70px; }
+
+.scope-comparison-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.scope-comparison-table .scope-num {
+  text-align: center;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.scope-comparison-table .scope-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.scope-comparison-table .val {
+  text-align: right;
+  font-family: 'SF Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.scope-comparison-table .val.total {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.scope-comparison-table .diff {
+  text-align: right;
+  font-family: 'SF Mono', monospace;
+  font-weight: 600;
+}
+
+.scope-comparison-table .diff.up { color: #ef4444; }
+.scope-comparison-table .diff.down { color: #10b981; }
+
+.scope-comparison-table .pct {
+  text-align: right;
+  font-family: 'SF Mono', monospace;
+  font-size: 0.72rem;
+}
+
+.scope-comparison-table .pct.up { color: #ef4444; }
+.scope-comparison-table .pct.down { color: #10b981; }
+.scope-comparison-table .pct.abnormal { 
+  background: rgba(249, 115, 22, 0.15);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+}
+
+.scope-comparison-table tr.abnormal-row {
+  background: rgba(249, 115, 22, 0.05);
+}
+
+.scope-comparison-table tr.abnormal-row td {
+  border-left: 3px solid #f97316;
+}
+
+.scope-comparison-table tfoot .totals-row {
+  background: var(--bg-hover);
+}
+
+.scope-comparison-table tfoot .totals-row td {
+  border-top: 2px solid var(--border);
+  padding: 0.75rem 0.5rem;
+}
+
+/* Analytics Summary Cards */
+.scope-analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.summary-card {
+  padding: 1rem;
+  background: var(--bg-hover);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.summary-card h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.summary-card.drivers {
+  border-left: 3px solid var(--primary);
+}
+
+.summary-card.abnormal {
+  border-left: 3px solid #f97316;
+}
+
+.driver-list, .abnormal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.driver-item, .abnormal-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-card);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.driver-item.up { border-left: 3px solid #ef4444; }
+.driver-item.down { border-left: 3px solid #10b981; }
+
+.driver-rank {
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 20px;
+}
+
+.driver-name, .abnormal-name {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.driver-diff {
+  font-family: 'SF Mono', monospace;
+  font-weight: 600;
+}
+
+.driver-item.up .driver-diff { color: #ef4444; }
+.driver-item.down .driver-diff { color: #10b981; }
+
+.abnormal-pct {
+  font-family: 'SF Mono', monospace;
+  font-weight: 600;
+}
+
+.abnormal-pct.up { color: #ef4444; }
+.abnormal-pct.down { color: #10b981; }
