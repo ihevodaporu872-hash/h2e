@@ -430,6 +430,7 @@ function App() {
   const [analyticsSelectedFiles, setAnalyticsSelectedFiles] = useState<string[]>([]);
   const [analyticsSelectedWorkType, setAnalyticsSelectedWorkType] = useState<string>('');
   const [analyticsCostType, setAnalyticsCostType] = useState<'pzTotal' | 'kzTotal' | 'totalPerGBA'>('pzTotal');
+  const [analyticsShowAllScopes, setAnalyticsShowAllScopes] = useState<boolean>(false);
 
   // BOQ Analysis state
   interface BOQItem {
@@ -4076,10 +4077,47 @@ function App() {
                     )}
 
                     {/* Aggregated Main Scope Comparison Table */}
-                    {aggregatedData && (
+                    {aggregatedData && (() => {
+                      // Extract scope number from selected work type (e.g., "06. МОНОЛИТНЫЕ" → "06")
+                      const selectedScopeNum = analyticsSelectedWorkType
+                        ? analyticsSelectedWorkType.match(/^(\d{1,2})\./)?.[1]?.padStart(2, '0') || null
+                        : null;
+
+                      // Filter comparison data based on selection
+                      const filteredComparison = (analyticsShowAllScopes || !selectedScopeNum)
+                        ? aggregatedData.comparison
+                        : aggregatedData.comparison.filter(s => s.scopeNum === selectedScopeNum);
+
+                      // Recalculate totals for filtered data
+                      const filteredTotals = filteredComparison.reduce((acc, s) => ({
+                        laborA: acc.laborA + s.laborA,
+                        materialA: acc.materialA + s.materialA,
+                        totalA: acc.totalA + s.totalA,
+                        laborB: acc.laborB + s.laborB,
+                        materialB: acc.materialB + s.materialB,
+                        totalB: acc.totalB + s.totalB,
+                      }), { laborA: 0, materialA: 0, totalA: 0, laborB: 0, materialB: 0, totalB: 0 });
+
+                      return (
                       <div className="aggregated-scope-section">
-                        <h3>📊 Сводная таблица по разделам</h3>
-                        <p className="section-desc">Агрегированное сравнение по основным разделам (01-21)</p>
+                        <div className="scope-section-header">
+                          <div>
+                            <h3>📊 Сводная таблица по разделам</h3>
+                            <p className="section-desc">
+                              {selectedScopeNum && !analyticsShowAllScopes
+                                ? `Раздел ${selectedScopeNum} — выбранный вид работ`
+                                : 'Агрегированное сравнение по основным разделам (01-21)'}
+                            </p>
+                          </div>
+                          {selectedScopeNum && (
+                            <button
+                              className={`scope-view-toggle ${analyticsShowAllScopes ? 'active' : ''}`}
+                              onClick={() => setAnalyticsShowAllScopes(!analyticsShowAllScopes)}
+                            >
+                              {analyticsShowAllScopes ? '📍 Только выбранный раздел' : '📋 Показать все разделы'}
+                            </button>
+                          )}
+                        </div>
 
                         <div className="scope-comparison-table-wrap">
                           <table className="scope-comparison-table">
@@ -4098,7 +4136,7 @@ function App() {
                               </tr>
                             </thead>
                             <tbody>
-                              {aggregatedData.comparison.map(scope => (
+                              {filteredComparison.map(scope => (
                                 <tr key={scope.scopeNum} className={scope.isAbnormal ? 'abnormal-row' : ''}>
                                   <td className="scope-num">{scope.scopeNum}</td>
                                   <td className="scope-name" title={scope.scopeName}>
@@ -4122,23 +4160,23 @@ function App() {
                             <tfoot>
                               <tr className="totals-row">
                                 <td></td>
-                                <td className="scope-name"><strong>ИТОГО</strong></td>
-                                <td className="val">{aggregatedData.totals.laborA.toLocaleString('ru-RU')}</td>
-                                <td className="val">{aggregatedData.totals.materialA.toLocaleString('ru-RU')}</td>
-                                <td className="val total">{aggregatedData.totals.totalA.toLocaleString('ru-RU')}</td>
-                                <td className="val">{aggregatedData.totals.laborB.toLocaleString('ru-RU')}</td>
-                                <td className="val">{aggregatedData.totals.materialB.toLocaleString('ru-RU')}</td>
-                                <td className="val total">{aggregatedData.totals.totalB.toLocaleString('ru-RU')}</td>
-                                <td className={`diff ${(aggregatedData.totals.totalB - aggregatedData.totals.totalA) > 0 ? 'up' : 'down'}`}>
+                                <td className="scope-name"><strong>ИТОГО{!analyticsShowAllScopes && selectedScopeNum ? ` (${selectedScopeNum})` : ''}</strong></td>
+                                <td className="val">{filteredTotals.laborA.toLocaleString('ru-RU')}</td>
+                                <td className="val">{filteredTotals.materialA.toLocaleString('ru-RU')}</td>
+                                <td className="val total">{filteredTotals.totalA.toLocaleString('ru-RU')}</td>
+                                <td className="val">{filteredTotals.laborB.toLocaleString('ru-RU')}</td>
+                                <td className="val">{filteredTotals.materialB.toLocaleString('ru-RU')}</td>
+                                <td className="val total">{filteredTotals.totalB.toLocaleString('ru-RU')}</td>
+                                <td className={`diff ${(filteredTotals.totalB - filteredTotals.totalA) > 0 ? 'up' : 'down'}`}>
                                   <strong>
-                                    {(aggregatedData.totals.totalB - aggregatedData.totals.totalA) > 0 ? '+' : ''}
-                                    {(aggregatedData.totals.totalB - aggregatedData.totals.totalA).toLocaleString('ru-RU')}
+                                    {(filteredTotals.totalB - filteredTotals.totalA) > 0 ? '+' : ''}
+                                    {(filteredTotals.totalB - filteredTotals.totalA).toLocaleString('ru-RU')}
                                   </strong>
                                 </td>
                                 <td className="pct">
                                   <strong>
-                                    {aggregatedData.totals.totalA !== 0
-                                      ? `${((aggregatedData.totals.totalB - aggregatedData.totals.totalA) / aggregatedData.totals.totalA * 100).toFixed(1)}%`
+                                    {filteredTotals.totalA !== 0
+                                      ? `${((filteredTotals.totalB - filteredTotals.totalA) / filteredTotals.totalA * 100).toFixed(1)}%`
                                       : '-'}
                                   </strong>
                                 </td>
@@ -4183,7 +4221,8 @@ function App() {
                           )}
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
               </div>

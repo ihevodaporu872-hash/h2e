@@ -4459,3 +4459,45 @@ body {
 .boq-detail-collapsible.expanded .boq-detail-content {
   display: block;
 }
+
+/* Scope section header with toggle */
+.scope-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.scope-section-header h3 {
+  margin: 0 0 0.25rem 0;
+}
+
+.scope-section-header .section-desc {
+  margin: 0;
+}
+
+.scope-view-toggle {
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.scope-view-toggle:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--primary);
+}
+
+.scope-view-toggle.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
