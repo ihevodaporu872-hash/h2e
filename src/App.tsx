@@ -3494,6 +3494,7 @@ function App() {
         };
 
         // Aggregated main scope comparison (01, 02, 03... not 01.01, 01.02)
+        // Takes values DIRECTLY from main scope rows - NO aggregation/summation
         const getAggregatedScopeComparison = () => {
           interface ScopeData {
             scopeNum: string;
@@ -3506,46 +3507,39 @@ function App() {
             totalB: number;
           }
 
-          const aggregateFileData = (file: TenderFile): Map<string, ScopeData> => {
+          const extractMainScopeData = (file: TenderFile): Map<string, ScopeData> => {
             const scopeMap = new Map<string, ScopeData>();
 
             file.sections.forEach(section => {
               section.rows.forEach(row => {
-                // Extract main scope number (01, 02, etc.) from row name
+                // Check if this is a MAIN scope row (e.g., "01. ОРГАНИЗАЦИЯ" or "1. ОРГАНИЗАЦИЯ")
+                // Main scope: starts with 1-2 digits, then period, then space, then uppercase letter
+                // NOT a sub-item (which would be like "01.01." or "1.1.")
+                const isMainScope = /^\d{1,2}\.\s+[А-ЯA-Z]/.test(row.name) && !row.name.match(/^\d{1,2}\.\d/);
+
+                if (!isMainScope) return;
+
+                // Extract scope number
                 const match = row.name.match(/^(\d{1,2})\./);
                 if (!match) return;
 
                 const scopeNum = match[1].padStart(2, '0');
 
-                // Check if this is a main scope (e.g., "01. ОРГАНИЗАЦИЯ") or sub-item (e.g., "01.01. Подсистема")
-                const isMainScope = /^\d{1,2}\.\s+[А-ЯA-Z]/.test(row.name) && !row.name.match(/^\d{1,2}\.\d{1,2}/);
+                // Get values directly from the main scope row - no aggregation
+                const labor = analyticsCostType === 'kzTotal' ? (row.kzLabor || 0) : (row.pzLabor || 0);
+                const material = analyticsCostType === 'kzTotal' ? (row.kzMaterial || 0) : (row.pzMaterial || 0);
+                const total = analyticsCostType === 'kzTotal' ? (row.kzTotal || 0) : (row.pzTotal || 0);
 
-                if (!scopeMap.has(scopeNum)) {
-                  scopeMap.set(scopeNum, {
-                    scopeNum,
-                    scopeName: isMainScope ? row.name : `${scopeNum}. Раздел ${scopeNum}`,
-                    laborA: 0, materialA: 0, totalA: 0,
-                    laborB: 0, materialB: 0, totalB: 0,
-                  });
-                }
-
-                const scope = scopeMap.get(scopeNum)!;
-
-                // Update scope name if this is the main scope row
-                if (isMainScope) {
-                  scope.scopeName = row.name;
-                }
-
-                // Aggregate values based on cost type
-                if (analyticsCostType === 'pzTotal' || analyticsCostType === 'totalPerGBA') {
-                  scope.laborA += row.pzLabor || 0;
-                  scope.materialA += row.pzMaterial || 0;
-                  scope.totalA += row.pzTotal || 0;
-                } else {
-                  scope.laborA += row.kzLabor || 0;
-                  scope.materialA += row.kzMaterial || 0;
-                  scope.totalA += row.kzTotal || 0;
-                }
+                scopeMap.set(scopeNum, {
+                  scopeNum,
+                  scopeName: row.name,
+                  laborA: labor,
+                  materialA: material,
+                  totalA: total,
+                  laborB: 0,
+                  materialB: 0,
+                  totalB: 0,
+                });
               });
             });
 
@@ -3578,8 +3572,8 @@ function App() {
 
           if (!fileA || !fileB) return null;
 
-          const dataA = aggregateFileData(fileA);
-          const dataB = aggregateFileData(fileB);
+          const dataA = extractMainScopeData(fileA);
+          const dataB = extractMainScopeData(fileB);
 
           // Merge data from both files
           const allScopes = new Set([...dataA.keys(), ...dataB.keys()]);
