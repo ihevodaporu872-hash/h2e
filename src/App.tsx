@@ -4120,18 +4120,27 @@ function App() {
                         </div>
 
                         <div className="scope-comparison-table-wrap">
-                          <table className="scope-comparison-table">
+                          <table className="scope-comparison-table visual-compare">
                             <thead>
-                              <tr>
-                                <th className="col-num">№</th>
-                                <th className="col-scope">Раздел</th>
-                                <th className="col-val">Работы ({aggregatedData.labelA})</th>
-                                <th className="col-val">Мат. ({aggregatedData.labelA})</th>
-                                <th className="col-val">Итого ({aggregatedData.labelA})</th>
-                                <th className="col-val">Работы ({aggregatedData.labelB})</th>
-                                <th className="col-val">Мат. ({aggregatedData.labelB})</th>
-                                <th className="col-val">Итого ({aggregatedData.labelB})</th>
-                                <th className="col-diff">Δ Итого</th>
+                              <tr className="group-header-row">
+                                <th className="col-num" rowSpan={2}>№</th>
+                                <th className="col-scope" rowSpan={2}>Раздел</th>
+                                <th className="group-header tender-a" colSpan={3}>
+                                  <span className="tender-badge">A</span> {aggregatedData.labelA}
+                                </th>
+                                <th className="group-header tender-b" colSpan={3}>
+                                  <span className="tender-badge">B</span> {aggregatedData.labelB}
+                                </th>
+                                <th className="group-header diff-group" colSpan={2}>Разница (B − A)</th>
+                              </tr>
+                              <tr className="sub-header-row">
+                                <th className="col-val tender-a">Работы</th>
+                                <th className="col-val tender-a">Мат.</th>
+                                <th className="col-val tender-a total-col">Итого</th>
+                                <th className="col-val tender-b">Работы</th>
+                                <th className="col-val tender-b">Мат.</th>
+                                <th className="col-val tender-b total-col">Итого</th>
+                                <th className="col-diff">Δ ₽</th>
                                 <th className="col-pct">Δ %</th>
                               </tr>
                             </thead>
@@ -4142,17 +4151,17 @@ function App() {
                                   <td className="scope-name" title={scope.scopeName}>
                                     {scope.scopeName.length > 35 ? scope.scopeName.substring(0, 35) + '...' : scope.scopeName}
                                   </td>
-                                  <td className="val">{scope.laborA.toLocaleString('ru-RU')}</td>
-                                  <td className="val">{scope.materialA.toLocaleString('ru-RU')}</td>
-                                  <td className="val total">{scope.totalA.toLocaleString('ru-RU')}</td>
-                                  <td className="val">{scope.laborB.toLocaleString('ru-RU')}</td>
-                                  <td className="val">{scope.materialB.toLocaleString('ru-RU')}</td>
-                                  <td className="val total">{scope.totalB.toLocaleString('ru-RU')}</td>
-                                  <td className={`diff ${scope.diffAbsolute > 0 ? 'up' : scope.diffAbsolute < 0 ? 'down' : ''}`}>
-                                    {scope.diffAbsolute > 0 ? '+' : ''}{scope.diffAbsolute.toLocaleString('ru-RU')}
+                                  <td className="val tender-a">{scope.laborA.toLocaleString('ru-RU')}</td>
+                                  <td className="val tender-a">{scope.materialA.toLocaleString('ru-RU')}</td>
+                                  <td className="val tender-a total-col">{scope.totalA.toLocaleString('ru-RU')}</td>
+                                  <td className="val tender-b">{scope.laborB.toLocaleString('ru-RU')}</td>
+                                  <td className="val tender-b">{scope.materialB.toLocaleString('ru-RU')}</td>
+                                  <td className="val tender-b total-col">{scope.totalB.toLocaleString('ru-RU')}</td>
+                                  <td className={`diff-cell ${scope.diffAbsolute > 0 ? 'up' : scope.diffAbsolute < 0 ? 'down' : 'neutral'}`}>
+                                    <span className="diff-value">{scope.diffAbsolute > 0 ? '+' : ''}{scope.diffAbsolute.toLocaleString('ru-RU')}</span>
                                   </td>
-                                  <td className={`pct ${scope.isAbnormal ? 'abnormal' : ''} ${scope.diffPercent > 0 ? 'up' : scope.diffPercent < 0 ? 'down' : ''}`}>
-                                    {scope.diffPercent > 0 ? '+' : ''}{scope.diffPercent.toFixed(1)}%
+                                  <td className={`pct-cell ${scope.isAbnormal ? 'abnormal' : ''} ${scope.diffPercent > 0 ? 'up' : scope.diffPercent < 0 ? 'down' : 'neutral'}`}>
+                                    <span className="pct-value">{scope.diffPercent > 0 ? '+' : ''}{scope.diffPercent.toFixed(1)}%</span>
                                   </td>
                                 </tr>
                               ))}
@@ -4161,20 +4170,20 @@ function App() {
                               <tr className="totals-row">
                                 <td></td>
                                 <td className="scope-name"><strong>ИТОГО{!analyticsShowAllScopes && selectedScopeNum ? ` (${selectedScopeNum})` : ''}</strong></td>
-                                <td className="val">{filteredTotals.laborA.toLocaleString('ru-RU')}</td>
-                                <td className="val">{filteredTotals.materialA.toLocaleString('ru-RU')}</td>
-                                <td className="val total">{filteredTotals.totalA.toLocaleString('ru-RU')}</td>
-                                <td className="val">{filteredTotals.laborB.toLocaleString('ru-RU')}</td>
-                                <td className="val">{filteredTotals.materialB.toLocaleString('ru-RU')}</td>
-                                <td className="val total">{filteredTotals.totalB.toLocaleString('ru-RU')}</td>
-                                <td className={`diff ${(filteredTotals.totalB - filteredTotals.totalA) > 0 ? 'up' : 'down'}`}>
-                                  <strong>
+                                <td className="val tender-a">{filteredTotals.laborA.toLocaleString('ru-RU')}</td>
+                                <td className="val tender-a">{filteredTotals.materialA.toLocaleString('ru-RU')}</td>
+                                <td className="val tender-a total-col">{filteredTotals.totalA.toLocaleString('ru-RU')}</td>
+                                <td className="val tender-b">{filteredTotals.laborB.toLocaleString('ru-RU')}</td>
+                                <td className="val tender-b">{filteredTotals.materialB.toLocaleString('ru-RU')}</td>
+                                <td className="val tender-b total-col">{filteredTotals.totalB.toLocaleString('ru-RU')}</td>
+                                <td className={`diff-cell ${(filteredTotals.totalB - filteredTotals.totalA) > 0 ? 'up' : 'down'}`}>
+                                  <strong className="diff-value">
                                     {(filteredTotals.totalB - filteredTotals.totalA) > 0 ? '+' : ''}
                                     {(filteredTotals.totalB - filteredTotals.totalA).toLocaleString('ru-RU')}
                                   </strong>
                                 </td>
-                                <td className="pct">
-                                  <strong>
+                                <td className={`pct-cell ${(filteredTotals.totalB - filteredTotals.totalA) > 0 ? 'up' : 'down'}`}>
+                                  <strong className="pct-value">
                                     {filteredTotals.totalA !== 0
                                       ? `${((filteredTotals.totalB - filteredTotals.totalA) / filteredTotals.totalA * 100).toFixed(1)}%`
                                       : '-'}

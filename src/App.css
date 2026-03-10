@@ -4225,12 +4225,86 @@ body {
 .scope-comparison-table-wrap {
   overflow-x: auto;
   margin-bottom: 1.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 
 .scope-comparison-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
+}
+
+/* Visual Compare Mode - Enhanced Styling */
+.scope-comparison-table.visual-compare .group-header-row th {
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: none;
+  border-bottom: none;
+}
+
+.scope-comparison-table.visual-compare .group-header {
+  position: relative;
+}
+
+.scope-comparison-table.visual-compare .group-header.tender-a {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%);
+  color: #60a5fa;
+  border-left: 3px solid #3b82f6;
+}
+
+.scope-comparison-table.visual-compare .group-header.tender-b {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.08) 100%);
+  color: #c084fc;
+  border-left: 3px solid #a855f7;
+}
+
+.scope-comparison-table.visual-compare .group-header.diff-group {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(251, 191, 36, 0.08) 100%);
+  color: #fbbf24;
+  border-left: 3px solid #f59e0b;
+}
+
+.tender-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-right: 0.4rem;
+}
+
+.group-header.tender-a .tender-badge {
+  background: #3b82f6;
+  color: white;
+}
+
+.group-header.tender-b .tender-badge {
+  background: #a855f7;
+  color: white;
+}
+
+.scope-comparison-table.visual-compare .sub-header-row th {
+  padding: 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--border);
+}
+
+.scope-comparison-table.visual-compare .sub-header-row th.tender-a {
+  background: rgba(59, 130, 246, 0.06);
+  color: #93c5fd;
+}
+
+.scope-comparison-table.visual-compare .sub-header-row th.tender-b {
+  background: rgba(168, 85, 247, 0.06);
+  color: #d8b4fe;
 }
 
 .scope-comparison-table th {
@@ -4246,21 +4320,22 @@ body {
 }
 
 .scope-comparison-table th.col-num { width: 40px; text-align: center; }
-.scope-comparison-table th.col-scope { min-width: 180px; }
-.scope-comparison-table th.col-val { text-align: right; width: 90px; }
-.scope-comparison-table th.col-diff { text-align: right; width: 100px; }
-.scope-comparison-table th.col-pct { text-align: right; width: 70px; }
+.scope-comparison-table th.col-scope { min-width: 180px; text-align: left; }
+.scope-comparison-table th.col-val { text-align: right; width: 95px; }
+.scope-comparison-table th.col-diff { text-align: center; width: 110px; }
+.scope-comparison-table th.col-pct { text-align: center; width: 80px; }
 
 .scope-comparison-table td {
-  padding: 0.5rem;
+  padding: 0.6rem 0.5rem;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 
 .scope-comparison-table .scope-num {
   text-align: center;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--primary);
+  font-size: 0.85rem;
 }
 
 .scope-comparison-table .scope-name {
@@ -4268,51 +4343,115 @@ body {
   color: var(--text-primary);
 }
 
+/* Tender A columns - Blue tint */
+.scope-comparison-table td.tender-a {
+  background: rgba(59, 130, 246, 0.04);
+  border-left: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.scope-comparison-table td.tender-a.total-col {
+  background: rgba(59, 130, 246, 0.1);
+  font-weight: 700;
+  color: #60a5fa;
+}
+
+/* Tender B columns - Purple tint */
+.scope-comparison-table td.tender-b {
+  background: rgba(168, 85, 247, 0.04);
+  border-left: 1px solid rgba(168, 85, 247, 0.1);
+}
+
+.scope-comparison-table td.tender-b.total-col {
+  background: rgba(168, 85, 247, 0.1);
+  font-weight: 700;
+  color: #c084fc;
+}
+
 .scope-comparison-table .val {
   text-align: right;
-  font-family: 'SF Mono', monospace;
-  font-size: 0.72rem;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
-.scope-comparison-table .val.total {
-  font-weight: 600;
-  color: var(--text-primary);
+/* Difference cells - prominent styling */
+.scope-comparison-table .diff-cell,
+.scope-comparison-table .pct-cell {
+  text-align: center;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-weight: 700;
+  background: rgba(251, 191, 36, 0.05);
+  border-left: 1px solid rgba(251, 191, 36, 0.15);
 }
 
-.scope-comparison-table .diff {
-  text-align: right;
-  font-family: 'SF Mono', monospace;
-  font-weight: 600;
-}
-
-.scope-comparison-table .diff.up { color: #ef4444; }
-.scope-comparison-table .diff.down { color: #10b981; }
-
-.scope-comparison-table .pct {
-  text-align: right;
-  font-family: 'SF Mono', monospace;
-  font-size: 0.72rem;
-}
-
-.scope-comparison-table .pct.up { color: #ef4444; }
-.scope-comparison-table .pct.down { color: #10b981; }
-.scope-comparison-table .pct.abnormal { 
-  background: rgba(249, 115, 22, 0.15);
+.scope-comparison-table .diff-cell .diff-value,
+.scope-comparison-table .pct-cell .pct-value {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
 }
 
+.scope-comparison-table .diff-cell.up .diff-value,
+.scope-comparison-table .pct-cell.up .pct-value {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.scope-comparison-table .diff-cell.down .diff-value,
+.scope-comparison-table .pct-cell.down .pct-value {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.scope-comparison-table .diff-cell.neutral .diff-value,
+.scope-comparison-table .pct-cell.neutral .pct-value {
+  background: rgba(156, 163, 175, 0.15);
+  color: var(--text-muted);
+}
+
+.scope-comparison-table .pct-cell.abnormal .pct-value {
+  background: rgba(249, 115, 22, 0.25);
+  color: #fb923c;
+  animation: pulse-warning 2s infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Abnormal row highlighting */
 .scope-comparison-table tr.abnormal-row {
-  background: rgba(249, 115, 22, 0.05);
+  background: rgba(249, 115, 22, 0.03);
 }
 
-.scope-comparison-table tr.abnormal-row td {
-  border-left: 3px solid #f97316;
+.scope-comparison-table tr.abnormal-row td:first-child {
+  border-left: 4px solid #f97316;
 }
 
+/* Totals row */
 .scope-comparison-table tfoot .totals-row {
   background: var(--bg-hover);
+}
+
+.scope-comparison-table tfoot .totals-row td {
+  border-top: 3px solid var(--border);
+  padding: 0.75rem 0.5rem;
+  font-weight: 600;
+}
+
+.scope-comparison-table tfoot .totals-row td.tender-a {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.scope-comparison-table tfoot .totals-row td.tender-b {
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.scope-comparison-table tfoot .totals-row .diff-cell,
+.scope-comparison-table tfoot .totals-row .pct-cell {
+  background: rgba(251, 191, 36, 0.12);
 }
 
 .scope-comparison-table tfoot .totals-row td {
