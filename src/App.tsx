@@ -3470,53 +3470,133 @@ function App() {
         const selectedProjectForVersions = tenderProjects.find(p => p.id === analyticsSelectedProjectForVersions);
 
         // Get all unique work types based on compare mode
-        // Groups work types by normalized name (ignoring number prefix)
+        // Groups work types hierarchically: main sections with their sub-items
         const getWorkTypesFromSelection = () => {
-          // Map normalized name -> first occurrence (display name)
-          const workTypeMap = new Map<string, string>();
+          // Collect all work types
+          const allWorkTypes: string[] = [];
 
-          const addWorkType = (name: string) => {
-            if (!name || !name.trim()) return;
-            const trimmed = name.trim();
-            const normalized = normalizeWorkTypeName(trimmed);
-            // Keep the first occurrence as the display name
-            if (!workTypeMap.has(normalized)) {
-              workTypeMap.set(normalized, trimmed);
-            }
+          const collectWorkTypes = (rows: TenderRow[]) => {
+            rows.forEach(row => {
+              if (row.name && row.name.trim()) {
+                allWorkTypes.push(row.name.trim());
+              }
+            });
           };
 
           if (analyticsCompareMode === 'projects') {
-            // Get work types from selected projects
             tenderProjects
               .filter(p => analyticsSelectedProjects.includes(p.id))
               .forEach(project => {
                 project.files.forEach(file => {
                   file.sections.forEach(section => {
-                    section.rows.forEach(row => {
-                      addWorkType(row.name);
-                    });
+                    collectWorkTypes(section.rows);
                   });
                 });
               });
           } else {
-            // Get work types from selected files within the project
             if (selectedProjectForVersions) {
               selectedProjectForVersions.files
                 .filter(f => analyticsSelectedFiles.includes(f.id))
                 .forEach(file => {
                   file.sections.forEach(section => {
-                    section.rows.forEach(row => {
-                      addWorkType(row.name);
-                    });
+                    collectWorkTypes(section.rows);
                   });
                 });
             }
           }
 
-          // Return normalized names as keys for matching, sorted
-          return Array.from(workTypeMap.entries())
-            .sort((a, b) => a[0].localeCompare(b[0]))
-            .map(([normalized, display]) => ({ normalized, display }));
+          // Separate main sections and sub-items
+          // Main section: "01. NAME" or "1. NAME" (not "01.01." or "1.1.")
+          const isMainSection = (name: string) => /^\d{1,2}\.\s+[А-ЯA-Z]/.test(name) && !name.match(/^\d{1,2}\.\d/);
+
+          // Extract section number from name (e.g., "05.09. Xyz" -> "05", "12. Xyz" -> "12")
+          const getSectionNum = (name: string): string | null => {
+            const match = name.match(/^(\d{1,2})\./);
+            return match ? match[1].padStart(2, '0') : null;
+          };
+
+          // Build hierarchical structure
+          interface WorkTypeItem {
+            normalized: string;
+            display: string;
+            isMain: boolean;
+            sectionNum: string;
+            subItems?: WorkTypeItem[];
+          }
+
+          const mainSections = new Map<string, WorkTypeItem>();
+          const subItemsMap = new Map<string, WorkTypeItem[]>(); // sectionNum -> sub-items
+
+          // First pass: identify unique items
+          const seenNormalized = new Set<string>();
+
+          allWorkTypes.forEach(name => {
+            const normalized = normalizeWorkTypeName(name);
+            if (seenNormalized.has(normalized)) return;
+            seenNormalized.add(normalized);
+
+            const sectionNum = getSectionNum(name);
+            if (!sectionNum) return;
+
+            if (isMainSection(name)) {
+              // Main section
+              if (!mainSections.has(normalized)) {
+                mainSections.set(normalized, {
+                  normalized,
+                  display: name,
+                  isMain: true,
+                  sectionNum,
+                  subItems: []
+                });
+              }
+            } else {
+              // Sub-item - extract parent section number (first 2 digits)
+              const parentNum = sectionNum;
+              if (!subItemsMap.has(parentNum)) {
+                subItemsMap.set(parentNum, []);
+              }
+              // Remove numbering for display (e.g., "05.09. Xyz" -> "Xyz")
+              const displayWithoutNumber = name.replace(/^\d{1,2}\.\d+\.\s*/, '').trim();
+              subItemsMap.get(parentNum)!.push({
+                normalized,
+                display: displayWithoutNumber,
+                isMain: false,
+                sectionNum
+              });
+            }
+          });
+
+          // Build final flat list: main section followed by its sub-items
+          const result: { normalized: string; display: string; isMain: boolean }[] = [];
+
+          // Sort main sections by their section number
+          const sortedMains = Array.from(mainSections.values())
+            .sort((a, b) => a.sectionNum.localeCompare(b.sectionNum));
+
+          sortedMains.forEach(main => {
+            // Add main section
+            result.push({ normalized: main.normalized, display: main.display, isMain: true });
+
+            // Add its sub-items
+            const subs = subItemsMap.get(main.sectionNum) || [];
+            subs.sort((a, b) => a.display.localeCompare(b.display));
+            subs.forEach(sub => {
+              result.push({ normalized: sub.normalized, display: sub.display, isMain: false });
+            });
+          });
+
+          // Add orphan sub-items (whose main section is not in the list)
+          const usedSectionNums = new Set(sortedMains.map(m => m.sectionNum));
+          subItemsMap.forEach((subs, sectionNum) => {
+            if (!usedSectionNums.has(sectionNum)) {
+              subs.sort((a, b) => a.display.localeCompare(b.display));
+              subs.forEach(sub => {
+                result.push({ normalized: sub.normalized, display: sub.display, isMain: false });
+              });
+            }
+          });
+
+          return result;
         };
 
         // Get comparison data based on mode
@@ -3935,22 +4015,19 @@ function App() {
                       onChange={(e) => setAnalyticsSelectedWorkType(e.target.value)}
                     >
                       <option value="">-- Выберите вид работ --</option>
-                      {availableWorkTypes.map(({ normalized, display }) => {
-                        const isMainItem = /^\d{2}\.\s+[A-ZА-ЯЁ]/.test(display);
-                        return (
-                          <option
-                            key={normalized}
-                            value={normalized}
-                            style={{
-                              fontWeight: isMainItem ? 'bold' : 'normal',
-                              color: isMainItem ? '#22d3ee' : 'inherit',
-                              backgroundColor: isMainItem ? 'rgba(34, 211, 238, 0.1)' : 'transparent',
-                            }}
-                          >
-                            {isMainItem ? `■ ${display}` : `    └ ${display}`}
-                          </option>
-                        );
-                      })}
+                      {availableWorkTypes.map(({ normalized, display, isMain }) => (
+                        <option
+                          key={normalized}
+                          value={normalized}
+                          style={{
+                            fontWeight: isMain ? 'bold' : 'normal',
+                            color: isMain ? '#22d3ee' : 'inherit',
+                            backgroundColor: isMain ? 'rgba(34, 211, 238, 0.1)' : 'transparent',
+                          }}
+                        >
+                          {isMain ? `■ ${display}` : `    └ ${display}`}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
