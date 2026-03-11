@@ -946,14 +946,15 @@ function App() {
   };
 
   // Analyze BOQ differences and generate explanation
-  const analyzeBOQDifferences = (comparisonData: { id: string; label: string; value: number | null; calculationDate: string }[]) => {
+  const analyzeBOQDifferences = (comparisonData: { id: string; fileId: string; label: string; value: number | null; calculationDate: string }[]) => {
     if (comparisonData.length < 2 || !analyticsSelectedWorkType) {
       setBOQAnalysisResult(null);
       return;
     }
 
     const linkedBOQs = comparisonData.map(item => {
-      const boq = boqFiles.find(b => b.linkedToFileId === item.id);
+      // Use fileId for BOQ lookup (important for project comparison mode)
+      const boq = boqFiles.find(b => b.linkedToFileId === item.fileId);
       return { ...item, boq };
     });
 
@@ -3627,8 +3628,11 @@ function App() {
                   if (foundRow) break;
                 }
 
+                // Use the latest file's ID for BOQ lookup
+                const latestFile = project.files[project.files.length - 1];
                 return {
                   id: project.id,
+                  fileId: latestFile?.id || project.id, // For BOQ lookup
                   label: project.name,
                   fileName: foundFile?.name || '-',
                   calculationDate: foundFile?.calculationDate || '-',
@@ -3659,6 +3663,7 @@ function App() {
 
                 return {
                   id: file.id,
+                  fileId: file.id, // Same as id in version mode
                   label: file.name,
                   fileName: file.name,
                   calculationDate: file.calculationDate || '-',
