@@ -36,11 +36,13 @@ const WORK_CATEGORIES = [
   'Свайные работы',
 ];
 
-// Helper: normalize work type name by stripping number prefix
+// Helper: normalize work type name by stripping ALL number prefixes
 // "05. ГИДРОИЗОЛЯЦИОННЫЕ РАБОТЫ" -> "ГИДРОИЗОЛЯЦИОННЫЕ РАБОТЫ"
-// "02. ЗЕМЛЯНЫЕ РАБОТЫ" -> "ЗЕМЛЯНЫЕ РАБОТЫ"
+// "01.01. Бытовой городок" -> "БЫТОВОЙ ГОРОДОК"
+// "02.03.01. Подраздел" -> "ПОДРАЗДЕЛ"
 const normalizeWorkTypeName = (name: string): string => {
-  return name.replace(/^\d{1,2}\.\s*/, '').trim().toUpperCase();
+  // Remove all leading number patterns like "01.", "01.02.", "01.02.03." etc.
+  return name.replace(/^[\d.]+\s*/, '').trim().toUpperCase();
 };
 
 // ==========================================
