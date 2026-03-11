@@ -36,6 +36,13 @@ const WORK_CATEGORIES = [
   'Свайные работы',
 ];
 
+// Helper: normalize work type name by stripping number prefix
+// "05. ГИДРОИЗОЛЯЦИОННЫЕ РАБОТЫ" -> "ГИДРОИЗОЛЯЦИОННЫЕ РАБОТЫ"
+// "02. ЗЕМЛЯНЫЕ РАБОТЫ" -> "ЗЕМЛЯНЫЕ РАБОТЫ"
+const normalizeWorkTypeName = (name: string): string => {
+  return name.replace(/^\d{1,2}\.\s*/, '').trim().toUpperCase();
+};
+
 // ==========================================
 // INDICATORS PAGE TYPES
 // ==========================================
@@ -3462,8 +3469,20 @@ function App() {
         const selectedProjectForVersions = tenderProjects.find(p => p.id === analyticsSelectedProjectForVersions);
 
         // Get all unique work types based on compare mode
+        // Groups work types by normalized name (ignoring number prefix)
         const getWorkTypesFromSelection = () => {
-          const workTypes = new Set<string>();
+          // Map normalized name -> first occurrence (display name)
+          const workTypeMap = new Map<string, string>();
+
+          const addWorkType = (name: string) => {
+            if (!name || !name.trim()) return;
+            const trimmed = name.trim();
+            const normalized = normalizeWorkTypeName(trimmed);
+            // Keep the first occurrence as the display name
+            if (!workTypeMap.has(normalized)) {
+              workTypeMap.set(normalized, trimmed);
+            }
+          };
 
           if (analyticsCompareMode === 'projects') {
             // Get work types from selected projects
@@ -3473,9 +3492,7 @@ function App() {
                 project.files.forEach(file => {
                   file.sections.forEach(section => {
                     section.rows.forEach(row => {
-                      if (row.name && row.name.trim()) {
-                        workTypes.add(row.name.trim());
-                      }
+                      addWorkType(row.name);
                     });
                   });
                 });
@@ -3488,19 +3505,21 @@ function App() {
                 .forEach(file => {
                   file.sections.forEach(section => {
                     section.rows.forEach(row => {
-                      if (row.name && row.name.trim()) {
-                        workTypes.add(row.name.trim());
-                      }
+                      addWorkType(row.name);
                     });
                   });
                 });
             }
           }
 
-          return Array.from(workTypes).sort();
+          // Return normalized names as keys for matching, sorted
+          return Array.from(workTypeMap.entries())
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([normalized, display]) => ({ normalized, display }));
         };
 
         // Get comparison data based on mode
+        // Uses normalized name matching to handle different numbering (e.g., "05. ГИДРОИЗОЛЯЦИЯ" vs "02. ГИДРОИЗОЛЯЦИЯ")
         const getComparisonDataByMode = () => {
           if (!analyticsSelectedWorkType) return [];
 
@@ -3516,7 +3535,8 @@ function App() {
 
                 for (const file of project.files) {
                   for (const section of file.sections) {
-                    const row = section.rows.find(r => r.name.trim() === analyticsSelectedWorkType);
+                    // Match by normalized name (ignoring number prefix)
+                    const row = section.rows.find(r => normalizeWorkTypeName(r.name) === analyticsSelectedWorkType);
                     if (row) {
                       foundRow = row;
                       foundFile = file;
@@ -3548,7 +3568,8 @@ function App() {
                 let foundRow: TenderRow | null = null;
 
                 for (const section of file.sections) {
-                  const row = section.rows.find(r => r.name.trim() === analyticsSelectedWorkType);
+                  // Match by normalized name (ignoring number prefix)
+                  const row = section.rows.find(r => normalizeWorkTypeName(r.name) === analyticsSelectedWorkType);
                   if (row) {
                     foundRow = row;
                     break;
@@ -3580,10 +3601,12 @@ function App() {
 
         // Aggregated main scope comparison (01, 02, 03... not 01.01, 01.02)
         // Takes values DIRECTLY from main scope rows - NO aggregation/summation
+        // Uses NORMALIZED names for matching (ignores number prefix)
         const getAggregatedScopeComparison = () => {
           interface ScopeData {
-            scopeNum: string;
-            scopeName: string;
+            scopeKey: string;      // Normalized name for matching
+            scopeNum: string;      // Original number from file A (for display)
+            scopeName: string;     // Full name from file A
             laborA: number;
             materialA: number;
             totalA: number;
@@ -3604,18 +3627,21 @@ function App() {
 
                 if (!isMainScope) return;
 
-                // Extract scope number
+                // Extract scope number for display
                 const match = row.name.match(/^(\d{1,2})\./);
                 if (!match) return;
 
                 const scopeNum = match[1].padStart(2, '0');
+                // Use normalized name as key for matching across files with different numbering
+                const scopeKey = normalizeWorkTypeName(row.name);
 
                 // Get values directly from the main scope row - no aggregation
                 const labor = analyticsCostType === 'kzTotal' ? (row.kzLabor || 0) : (row.pzLabor || 0);
                 const material = analyticsCostType === 'kzTotal' ? (row.kzMaterial || 0) : (row.pzMaterial || 0);
                 const total = analyticsCostType === 'kzTotal' ? (row.kzTotal || 0) : (row.pzTotal || 0);
 
-                scopeMap.set(scopeNum, {
+                scopeMap.set(scopeKey, {
+                  scopeKey,
                   scopeNum,
                   scopeName: row.name,
                   laborA: labor,
@@ -3660,17 +3686,18 @@ function App() {
           const dataA = extractMainScopeData(fileA);
           const dataB = extractMainScopeData(fileB);
 
-          // Merge data from both files
-          const allScopes = new Set([...dataA.keys(), ...dataB.keys()]);
+          // Merge data from both files using normalized name as key
+          const allScopeKeys = new Set([...dataA.keys(), ...dataB.keys()]);
           const comparison: Array<ScopeData & { diffAbsolute: number; diffPercent: number; isAbnormal: boolean }> = [];
 
-          allScopes.forEach(scopeNum => {
-            const a = dataA.get(scopeNum);
-            const b = dataB.get(scopeNum);
+          allScopeKeys.forEach(scopeKey => {
+            const a = dataA.get(scopeKey);
+            const b = dataB.get(scopeKey);
 
             const scopeData = {
-              scopeNum,
-              scopeName: a?.scopeName || b?.scopeName || `${scopeNum}. Раздел`,
+              scopeKey,
+              scopeNum: a?.scopeNum || b?.scopeNum || '00',
+              scopeName: a?.scopeName || b?.scopeName || scopeKey,
               laborA: a?.laborA || 0,
               materialA: a?.materialA || 0,
               totalA: a?.totalA || 0,
@@ -3698,8 +3725,8 @@ function App() {
             comparison.push(scopeData);
           });
 
-          // Sort by scope number
-          comparison.sort((a, b) => a.scopeNum.localeCompare(b.scopeNum));
+          // Sort by normalized scope name (alphabetically)
+          comparison.sort((a, b) => a.scopeKey.localeCompare(b.scopeKey));
 
           // Calculate totals
           const totals = comparison.reduce((acc, s) => ({
@@ -3907,19 +3934,19 @@ function App() {
                       onChange={(e) => setAnalyticsSelectedWorkType(e.target.value)}
                     >
                       <option value="">-- Выберите вид работ --</option>
-                      {availableWorkTypes.map(workType => {
-                        const isMainItem = /^\d{2}\.\s+[A-ZА-ЯЁ]/.test(workType);
+                      {availableWorkTypes.map(({ normalized, display }) => {
+                        const isMainItem = /^\d{2}\.\s+[A-ZА-ЯЁ]/.test(display);
                         return (
                           <option
-                            key={workType}
-                            value={workType}
+                            key={normalized}
+                            value={normalized}
                             style={{
                               fontWeight: isMainItem ? 'bold' : 'normal',
                               color: isMainItem ? '#22d3ee' : 'inherit',
                               backgroundColor: isMainItem ? 'rgba(34, 211, 238, 0.1)' : 'transparent',
                             }}
                           >
-                            {isMainItem ? `■ ${workType}` : `    └ ${workType}`}
+                            {isMainItem ? `■ ${display}` : `    └ ${display}`}
                           </option>
                         );
                       })}
