@@ -959,7 +959,8 @@ function App() {
 
     const boqsWithData = linkedBOQs.filter(l => l.boq && l.boq.items.length > 0);
     if (boqsWithData.length < 2) {
-      setBOQAnalysisResult('<div class="boq-no-data">Загрузите BOQ файлы для сравниваемых версий</div>');
+      const modeText = analyticsCompareMode === 'projects' ? 'проектов' : 'версий';
+      setBOQAnalysisResult(`<div class="boq-no-data">Загрузите BOQ файлы для сравниваемых ${modeText}</div>`);
       return;
     }
 
@@ -3975,7 +3976,7 @@ function App() {
                   <div className="analytics-section boq-upload-section">
                     <h3>5. Загрузка BOQ (Весь ВОР) для детального анализа</h3>
                     <p className="boq-upload-hint">
-                      Загрузите Excel-файлы BOQ для каждой версии, чтобы узнать причину разницы (материалы или работы)
+                      Загрузите Excel-файлы BOQ для {analyticsCompareMode === 'projects' ? 'каждого проекта' : 'каждой версии'}, чтобы узнать причину разницы (материалы или работы)
                     </p>
 
                     {/* Hidden file input for BOQ */}
