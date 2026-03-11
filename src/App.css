@@ -3082,12 +3082,12 @@ body {
 }
 
 .diff-cell.positive {
-  color: #ef4444;
+  color: #10b981;
   font-weight: 600;
 }
 
 .diff-cell.negative {
-  color: #10b981;
+  color: #ef4444;
   font-weight: 600;
 }
 
@@ -3308,8 +3308,8 @@ body {
   text-align: center;
 }
 
-.eng-card.up { border-color: rgba(239, 68, 68, 0.4); }
-.eng-card.down { border-color: rgba(16, 185, 129, 0.4); }
+.eng-card.up { border-color: rgba(16, 185, 129, 0.4); }
+.eng-card.down { border-color: rgba(239, 68, 68, 0.4); }
 .eng-card.total { background: var(--bg-hover); }
 
 .card-label {
@@ -3323,8 +3323,8 @@ body {
   font-weight: 700;
 }
 
-.eng-card.up .card-value { color: #ef4444; }
-.eng-card.down .card-value { color: #10b981; }
+.eng-card.up .card-value { color: #10b981; }
+.eng-card.down .card-value { color: #ef4444; }
 
 .card-pct {
   font-size: 0.7rem;
@@ -3454,12 +3454,12 @@ body {
 }
 
 .eng-detail-table .diff-up {
-  color: #ef4444;
+  color: #10b981;
   font-weight: 600;
 }
 
 .eng-detail-table .diff-down {
-  color: #10b981;
+  color: #ef4444;
   font-weight: 600;
 }
 
@@ -3598,11 +3598,11 @@ body {
 }
 
 .top-item.up {
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid #10b981;
 }
 
 .top-item.down {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid #ef4444;
 }
 
 .top-num {
@@ -3622,11 +3622,11 @@ body {
 }
 
 .top-item.up .top-diff {
-  color: #ef4444;
+  color: #10b981;
 }
 
 .top-item.down .top-diff {
-  color: #10b981;
+  color: #ef4444;
 }
 
 .top-pct {
@@ -4479,14 +4479,14 @@ body {
 
 .scope-comparison-table .diff-cell.up .diff-value,
 .scope-comparison-table .pct-cell.up .pct-value {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
 }
 
 .scope-comparison-table .diff-cell.down .diff-value,
 .scope-comparison-table .pct-cell.down .pct-value {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
 }
 
 .scope-comparison-table .diff-cell.neutral .diff-value,
@@ -4588,8 +4588,8 @@ body {
   font-size: 0.75rem;
 }
 
-.driver-item.up { border-left: 3px solid #ef4444; }
-.driver-item.down { border-left: 3px solid #10b981; }
+.driver-item.up { border-left: 3px solid #10b981; }
+.driver-item.down { border-left: 3px solid #ef4444; }
 
 .driver-rank {
   font-weight: 600;
@@ -4607,16 +4607,16 @@ body {
   font-weight: 600;
 }
 
-.driver-item.up .driver-diff { color: #ef4444; }
-.driver-item.down .driver-diff { color: #10b981; }
+.driver-item.up .driver-diff { color: #10b981; }
+.driver-item.down .driver-diff { color: #ef4444; }
 
 .abnormal-pct {
   font-family: 'SF Mono', monospace;
   font-weight: 600;
 }
 
-.abnormal-pct.up { color: #ef4444; }
-.abnormal-pct.down { color: #10b981; }
+.abnormal-pct.up { color: #10b981; }
+.abnormal-pct.down { color: #ef4444; }
 
 /* ==========================================
    COLLAPSIBLE BOQ DETAIL SECTION
