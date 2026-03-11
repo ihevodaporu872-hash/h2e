@@ -4374,15 +4374,19 @@ function App() {
 
                     {/* Aggregated Main Scope Comparison Table */}
                     {aggregatedData && (() => {
-                      // Extract scope number from selected work type (e.g., "06. МОНОЛИТНЫЕ" → "06")
-                      const selectedScopeNum = analyticsSelectedWorkType
-                        ? analyticsSelectedWorkType.match(/^(\d{1,2})\./)?.[1]?.padStart(2, '0') || null
+                      // Use normalized name (scopeKey) for matching - handles different numbering
+                      // analyticsSelectedWorkType is already the normalized name (uppercase, no number prefix)
+                      const selectedScopeKey = analyticsSelectedWorkType || null;
+
+                      // Find the matching scope by normalized name
+                      const matchingScope = selectedScopeKey
+                        ? aggregatedData.comparison.find(s => s.scopeKey === selectedScopeKey)
                         : null;
 
-                      // Filter comparison data based on selection
-                      const filteredComparison = (analyticsShowAllScopes || !selectedScopeNum)
+                      // Filter comparison data based on selection (by name, not number)
+                      const filteredComparison = (analyticsShowAllScopes || !selectedScopeKey)
                         ? aggregatedData.comparison
-                        : aggregatedData.comparison.filter(s => s.scopeNum === selectedScopeNum);
+                        : aggregatedData.comparison.filter(s => s.scopeKey === selectedScopeKey);
 
                       // Recalculate totals for filtered data
                       const filteredTotals = filteredComparison.reduce((acc, s) => ({
@@ -4400,12 +4404,12 @@ function App() {
                           <div>
                             <h3>📊 Сводная таблица по разделам</h3>
                             <p className="section-desc">
-                              {selectedScopeNum && !analyticsShowAllScopes
-                                ? `Раздел ${selectedScopeNum} — выбранный вид работ`
+                              {matchingScope && !analyticsShowAllScopes
+                                ? `${matchingScope.scopeName} — выбранный вид работ`
                                 : 'Агрегированное сравнение по основным разделам (01-21)'}
                             </p>
                           </div>
-                          {selectedScopeNum && (
+                          {selectedScopeKey && (
                             <button
                               className={`scope-view-toggle ${analyticsShowAllScopes ? 'active' : ''}`}
                               onClick={() => setAnalyticsShowAllScopes(!analyticsShowAllScopes)}
@@ -4515,7 +4519,7 @@ function App() {
                             <tfoot>
                               <tr className="totals-row">
                                 <td></td>
-                                <td className="scope-name"><strong>ИТОГО{!analyticsShowAllScopes && selectedScopeNum ? ` (${selectedScopeNum})` : ''}</strong></td>
+                                <td className="scope-name"><strong>ИТОГО{!analyticsShowAllScopes && matchingScope ? ` (${matchingScope.scopeNum})` : ''}</strong></td>
                                 <td className="val tender-a">{filteredTotals.laborA.toLocaleString('ru-RU')}</td>
                                 <td className="val tender-a">{filteredTotals.materialA.toLocaleString('ru-RU')}</td>
                                 <td className="val tender-a total-col">{filteredTotals.totalA.toLocaleString('ru-RU')}</td>
