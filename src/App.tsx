@@ -440,6 +440,7 @@ function App() {
   const [analyticsSelectedWorkType, setAnalyticsSelectedWorkType] = useState<string>('');
   const [analyticsCostType, setAnalyticsCostType] = useState<'pzTotal' | 'kzTotal' | 'totalPerGBA'>('pzTotal');
   const [analyticsShowAllScopes, setAnalyticsShowAllScopes] = useState<boolean>(false);
+  const [selectedScopeForDetail, setSelectedScopeForDetail] = useState<string | null>(null); // For side panel
 
   // BOQ Analysis state
   interface BOQItem {
@@ -3834,7 +3835,111 @@ function App() {
           // Find abnormal deviations
           const abnormalScopes = comparison.filter(s => s.isAbnormal);
 
-          return { comparison, totals, topDrivers, abnormalScopes, labelA, labelB };
+          return { comparison, totals, topDrivers, abnormalScopes, labelA, labelB, fileA, fileB };
+        };
+
+        // Function to get sub-items for a specific scope
+        const getSubItemsForScope = (scopeKey: string) => {
+          if (!aggregatedData?.fileA || !aggregatedData?.fileB) return null;
+
+          const extractSubItems = (file: TenderFile, scopeKey: string) => {
+            const subItems: Array<{
+              name: string;
+              labor: number;
+              material: number;
+              total: number;
+            }> = [];
+
+            file.sections.forEach(section => {
+              section.rows.forEach(row => {
+                // Check if this is a sub-item of the selected scope
+                // Sub-item pattern: "XX.XX." or "XX.XX.XX." etc.
+                const isSubItem = /^\d{1,2}\.\d+/.test(row.name);
+                if (!isSubItem) return;
+
+                // Get parent scope key
+                const parentMatch = row.name.match(/^(\d{1,2})\./);
+                if (!parentMatch) return;
+
+                // Check if normalized parent matches the selected scope
+                // We need to find the main scope row that matches this sub-item's parent
+                const parentNum = parentMatch[1].padStart(2, '0');
+
+                // Find the main scope for this parent number
+                let parentScopeKey: string | null = null;
+                section.rows.forEach(r => {
+                  const isMain = /^\d{1,2}\.\s+[А-ЯA-Z]/.test(r.name) && !r.name.match(/^\d{1,2}\.\d/);
+                  if (isMain) {
+                    const m = r.name.match(/^(\d{1,2})\./);
+                    if (m && m[1].padStart(2, '0') === parentNum) {
+                      parentScopeKey = normalizeWorkTypeName(r.name);
+                    }
+                  }
+                });
+
+                if (parentScopeKey !== scopeKey) return;
+
+                const labor = analyticsCostType === 'kzTotal' ? (row.kzLabor || 0) : (row.pzLabor || 0);
+                const material = analyticsCostType === 'kzTotal' ? (row.kzMaterial || 0) : (row.pzMaterial || 0);
+                const total = analyticsCostType === 'kzTotal' ? (row.kzTotal || 0) : (row.pzTotal || 0);
+
+                // Remove number prefix for cleaner display
+                const cleanName = row.name.replace(/^\d{1,2}\.\d+\.\s*/, '').trim();
+
+                subItems.push({
+                  name: cleanName || row.name,
+                  labor,
+                  material,
+                  total,
+                });
+              });
+            });
+
+            return subItems;
+          };
+
+          const subItemsA = extractSubItems(aggregatedData.fileA, scopeKey);
+          const subItemsB = extractSubItems(aggregatedData.fileB, scopeKey);
+
+          // Merge sub-items by normalized name
+          const mergedMap = new Map<string, { name: string; laborA: number; materialA: number; totalA: number; laborB: number; materialB: number; totalB: number }>();
+
+          subItemsA.forEach(item => {
+            const key = item.name.toUpperCase();
+            mergedMap.set(key, {
+              name: item.name,
+              laborA: item.labor,
+              materialA: item.material,
+              totalA: item.total,
+              laborB: 0,
+              materialB: 0,
+              totalB: 0,
+            });
+          });
+
+          subItemsB.forEach(item => {
+            const key = item.name.toUpperCase();
+            const existing = mergedMap.get(key);
+            if (existing) {
+              existing.laborB = item.labor;
+              existing.materialB = item.material;
+              existing.totalB = item.total;
+            } else {
+              mergedMap.set(key, {
+                name: item.name,
+                laborA: 0,
+                materialA: 0,
+                totalA: 0,
+                laborB: item.labor,
+                materialB: item.material,
+                totalB: item.total,
+              });
+            }
+          });
+
+          return Array.from(mergedMap.values()).sort((a, b) =>
+            Math.abs(b.totalB - b.totalA) - Math.abs(a.totalB - a.totalA)
+          );
         };
 
         // Check if enough items are selected for comparison
@@ -4310,37 +4415,87 @@ function App() {
                           )}
                         </div>
 
-                        <div className="scope-comparison-table-wrap">
-                          <table className="scope-comparison-table visual-compare">
-                            <thead>
-                              <tr className="group-header-row">
-                                <th className="col-num" rowSpan={2}>№</th>
-                                <th className="col-scope" rowSpan={2}>Раздел</th>
-                                <th className="group-header tender-a" colSpan={3}>
-                                  <span className="tender-badge">A</span> {aggregatedData.labelA}
-                                </th>
-                                <th className="group-header tender-b" colSpan={3}>
-                                  <span className="tender-badge">B</span> {aggregatedData.labelB}
-                                </th>
-                                <th className="group-header diff-group" colSpan={2}>Разница (B − A)</th>
-                              </tr>
-                              <tr className="sub-header-row">
-                                <th className="col-val tender-a">Работы</th>
-                                <th className="col-val tender-a">Мат.</th>
-                                <th className="col-val tender-a total-col">Итого</th>
-                                <th className="col-val tender-b">Работы</th>
-                                <th className="col-val tender-b">Мат.</th>
-                                <th className="col-val tender-b total-col">Итого</th>
-                                <th className="col-diff">Δ ₽</th>
+                        <div className={`scope-table-with-panel ${selectedScopeForDetail ? 'panel-open' : ''}`}>
+                          {/* Sub-items detail panel */}
+                          {selectedScopeForDetail && (() => {
+                            const subItems = getSubItemsForScope(selectedScopeForDetail);
+                            const selectedScope = filteredComparison.find(s => s.scopeKey === selectedScopeForDetail) ||
+                                                  aggregatedData.comparison.find(s => s.scopeKey === selectedScopeForDetail);
+                            return (
+                              <div className="scope-detail-panel">
+                                <div className="panel-header">
+                                  <h4>📋 Подразделы</h4>
+                                  <button className="panel-close" onClick={() => setSelectedScopeForDetail(null)}>×</button>
+                                </div>
+                                <div className="panel-scope-name">{selectedScope?.scopeName || selectedScopeForDetail}</div>
+                                <div className="panel-labels">
+                                  <span className="label-a">A: {aggregatedData.labelA}</span>
+                                  <span className="label-b">B: {aggregatedData.labelB}</span>
+                                </div>
+                                {subItems && subItems.length > 0 ? (
+                                  <div className="panel-items">
+                                    {subItems.map((item, idx) => {
+                                      const diff = item.totalB - item.totalA;
+                                      const pct = item.totalA !== 0 ? (diff / item.totalA * 100) : (item.totalB !== 0 ? 100 : 0);
+                                      return (
+                                        <div key={idx} className={`panel-item ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`}>
+                                          <div className="item-name">{item.name}</div>
+                                          <div className="item-values">
+                                            <span className="val-a">{item.totalA.toLocaleString('ru-RU')}</span>
+                                            <span className="val-arrow">→</span>
+                                            <span className="val-b">{item.totalB.toLocaleString('ru-RU')}</span>
+                                          </div>
+                                          <div className={`item-diff ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`}>
+                                            {diff > 0 ? '+' : ''}{diff.toLocaleString('ru-RU')} ({pct > 0 ? '+' : ''}{pct.toFixed(1)}%)
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="panel-no-items">Нет данных по подразделам</div>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          <div className="scope-comparison-table-wrap">
+                            <table className="scope-comparison-table visual-compare">
+                              <thead>
+                                <tr className="group-header-row">
+                                  <th className="col-num" rowSpan={2}>№</th>
+                                  <th className="col-scope" rowSpan={2}>Раздел</th>
+                                  <th className="group-header tender-a" colSpan={3}>
+                                    <span className="tender-badge">A</span> {aggregatedData.labelA}
+                                  </th>
+                                  <th className="group-header tender-b" colSpan={3}>
+                                    <span className="tender-badge">B</span> {aggregatedData.labelB}
+                                  </th>
+                                  <th className="group-header diff-group" colSpan={2}>Разница (B − A)</th>
+                                </tr>
+                                <tr className="sub-header-row">
+                                  <th className="col-val tender-a">Работы</th>
+                                  <th className="col-val tender-a">Мат.</th>
+                                  <th className="col-val tender-a total-col">Итого</th>
+                                  <th className="col-val tender-b">Работы</th>
+                                  <th className="col-val tender-b">Мат.</th>
+                                  <th className="col-val tender-b total-col">Итого</th>
+                                  <th className="col-diff">Δ ₽</th>
                                 <th className="col-pct">Δ %</th>
                               </tr>
                             </thead>
                             <tbody>
                               {filteredComparison.map(scope => (
-                                <tr key={scope.scopeNum} className={scope.isAbnormal ? 'abnormal-row' : ''}>
+                                <tr
+                                  key={scope.scopeKey}
+                                  className={`${scope.isAbnormal ? 'abnormal-row' : ''} ${selectedScopeForDetail === scope.scopeKey ? 'selected-row' : ''} clickable-row`}
+                                  onClick={() => setSelectedScopeForDetail(selectedScopeForDetail === scope.scopeKey ? null : scope.scopeKey)}
+                                  title="Нажмите для просмотра подразделов"
+                                >
                                   <td className="scope-num">{scope.scopeNum}</td>
                                   <td className="scope-name" title={scope.scopeName}>
                                     {scope.scopeName.length > 35 ? scope.scopeName.substring(0, 35) + '...' : scope.scopeName}
+                                    {selectedScopeForDetail === scope.scopeKey && <span className="expand-indicator"> ◀</span>}
                                   </td>
                                   <td className="val tender-a">{scope.laborA.toLocaleString('ru-RU')}</td>
                                   <td className="val tender-a">{scope.materialA.toLocaleString('ru-RU')}</td>
@@ -4382,7 +4537,8 @@ function App() {
                                 </td>
                               </tr>
                             </tfoot>
-                          </table>
+                            </table>
+                          </div>
                         </div>
 
                         {/* Analytics Summary */}
