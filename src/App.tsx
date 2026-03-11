@@ -672,6 +672,81 @@ function App() {
     };
   }, [boqAnalysisResult]);
 
+  // Handle BOQ search input (for dynamically rendered HTML)
+  useEffect(() => {
+    if (!boqAnalysisResult) return;
+
+    const searchInput = document.getElementById('boq-search-input') as HTMLInputElement;
+    const searchClear = document.getElementById('boq-search-clear');
+    const searchCount = document.getElementById('boq-search-count');
+    const detailTable = document.getElementById('boq-detail-table');
+    const filterStatus = document.getElementById('boq-filter-status');
+
+    if (!searchInput || !detailTable) return;
+
+    const handleSearch = () => {
+      const query = searchInput.value.toLowerCase().trim();
+      const rows = detailTable.querySelectorAll('tbody tr');
+      let visibleCount = 0;
+      let matchCount = 0;
+      const totalCount = rows.length;
+
+      rows.forEach(row => {
+        const searchData = row.getAttribute('data-search') || '';
+        const sigFilter = row.getAttribute('data-significance');
+
+        // Check if row matches search
+        const matchesSearch = query === '' || searchData.includes(query);
+
+        // Check if row passes current significance filter
+        const activeFilter = document.querySelector('.filter-btn.active')?.getAttribute('data-filter') || 'all';
+        const matchesFilter = activeFilter === 'all' || sigFilter === activeFilter;
+
+        if (matchesSearch && matchesFilter) {
+          (row as HTMLElement).style.display = '';
+          visibleCount++;
+          if (query !== '' && matchesSearch) matchCount++;
+        } else {
+          (row as HTMLElement).style.display = 'none';
+        }
+      });
+
+      // Update search results count
+      if (searchCount) {
+        if (query !== '') {
+          searchCount.textContent = `Найдено: ${matchCount} позиций`;
+          searchCount.style.display = 'block';
+        } else {
+          searchCount.style.display = 'none';
+        }
+      }
+
+      // Update filter status
+      if (filterStatus) {
+        filterStatus.textContent = `Показано: ${visibleCount} из ${totalCount} позиций`;
+      }
+
+      // Show/hide clear button
+      if (searchClear) {
+        searchClear.style.display = query !== '' ? 'flex' : 'none';
+      }
+    };
+
+    const handleClear = () => {
+      searchInput.value = '';
+      handleSearch();
+      searchInput.focus();
+    };
+
+    searchInput.addEventListener('input', handleSearch);
+    searchClear?.addEventListener('click', handleClear);
+
+    return () => {
+      searchInput.removeEventListener('input', handleSearch);
+      searchClear?.removeEventListener('click', handleClear);
+    };
+  }, [boqAnalysisResult]);
+
   // State for comment panel (modern slide-in panel)
   const [commentPanelOpen, setCommentPanelOpen] = useState(false);
   const [commentPanelData, setCommentPanelData] = useState<{
@@ -1295,6 +1370,16 @@ function App() {
       html += `</button>`;
       html += `<div class="boq-detail-content">`;
 
+      // Search input
+      html += `<div class="boq-search-panel">`;
+      html += `<div class="boq-search-wrapper">`;
+      html += `<span class="search-icon">🔍</span>`;
+      html += `<input type="text" id="boq-search-input" class="boq-search-input" placeholder="Поиск позиции BOQ..." />`;
+      html += `<button class="search-clear-btn" id="boq-search-clear" title="Очистить поиск">✕</button>`;
+      html += `</div>`;
+      html += `<div class="search-results-count" id="boq-search-count"></div>`;
+      html += `</div>`;
+
       // Filter panel
       html += `<div class="boq-filter-panel" id="boq-filter-panel">`;
       html += `<span class="filter-label">Фильтр значимости Δ:</span>`;
@@ -1329,7 +1414,7 @@ function App() {
         const significance = getSignificance(c.diff, oldVal);
         const rowCls = c.changeType === 'new' ? 'row-new' : c.changeType === 'removed' ? 'row-removed' : '';
 
-        html += `<tr class="${rowCls} ${typeCls} sig-${significance}" data-significance="${significance}">`;
+        html += `<tr class="${rowCls} ${typeCls} sig-${significance}" data-significance="${significance}" data-search="${c.name.toLowerCase()}">`;
         html += `<td class="pos-name">${c.name}</td>`;
         html += `<td class="pos-type">${typeIcon} ${typeLabel}</td>`;
         html += `<td class="pos-vals">${c.v1Price > 0 ? formatNumber(c.v1Price) + '₽' : '—'}<br><span class="qty">${c.v1Qty > 0 ? c.v1Qty.toFixed(1) + ' ' + c.v1Unit : '—'}</span></td>`;
