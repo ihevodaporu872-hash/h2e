@@ -4655,8 +4655,8 @@ body {
 
 /* Detail Panel */
 .scope-detail-panel {
-  width: 320px;
-  min-width: 320px;
+  width: 520px;
+  min-width: 520px;
   max-height: 600px;
   background: var(--bg-card);
   border: 1px solid var(--border);
