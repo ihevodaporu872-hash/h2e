@@ -1171,12 +1171,160 @@ function App() {
     const totalMat2 = cat2.materials.reduce((s, i) => s + i.totalSum, 0);
     const totalWork2 = cat2.works.reduce((s, i) => s + i.totalSum, 0);
 
-    // Create index for comparison
-    const normName = (n: string) => n.toLowerCase().replace(/\s+/g, ' ').trim().substring(0, 60);
+    // ===== INTELLIGENT SEMANTIC MATCHING FOR BOQ ITEMS =====
+    // Match items from different tenders that have different naming but same work type
+
+    // Synonym groups for construction terms - items with shared synonyms are same work type
+    const synonymGroups: string[][] = [
+      // Site organization / temporary facilities
+      ['ШТАБ', 'ШТАБНОЙ', 'ШТАБНОЕ', 'ОФИС СТРОИТЕЛЬНЫЙ', 'БЫТОВ', 'БЫТОВОЙ ГОРОДОК', 'БЫТОВКИ', 'МОБИЛЬНОЕ ЗДАНИЕ'],
+      ['ОГРАЖДЕНИЕ', 'ЗАБОР', 'ОГРАДА', 'ОГРАЖДАЮЩ'],
+      ['МОЙКА КОЛЕС', 'МОЙКА', 'МОЕЧНЫЙ', 'АВТОМОЙКА'],
+      ['КПП', 'КОНТРОЛЬНО-ПРОПУСКНОЙ', 'ПРОХОДНАЯ', 'ПОСТ ОХРАНЫ'],
+      ['FACE ID', 'ФЕЙС АЙ ДИ', 'СИСТЕМА ДОСТУПА', 'КОНТРОЛЬ ДОСТУПА', 'СКУД'],
+
+      // Temporary structures
+      ['ВРЕМЕННЫЙ', 'ВРЕМЕННОЕ', 'ВРЕМЯНКА', 'ТЕХНОЛОГИЧЕСКИЙ'],
+      ['КОНТЕЙНЕР', 'БЛОК-КОНТЕЙНЕР', 'МОДУЛЬНОЕ ЗДАНИЕ', 'МОДУЛЬ'],
+      ['БИОТУАЛЕТ', 'ТУАЛЕТ', 'САНУЗЕЛ ВРЕМЕННЫЙ', 'ТУАЛЕТНАЯ КАБИНА'],
+
+      // Utilities - heating/climate
+      ['ОТОПЛЕНИЕ', 'ОТОПИТЕЛЬН', 'ОБОГРЕВ', 'ТЕПЛОСНАБЖЕНИЕ', 'ТЕПЛОСНАБЖ'],
+      ['ОБСЛУЖИВАНИЕ', 'ОБСЛУЖ', 'СЕРВИС', 'ТО ', 'ТЕХОБСЛУЖИВАНИЕ'],
+
+      // Earthworks
+      ['ГРУНТ', 'ЗЕМЛЯ', 'ЗЕМЛЯНЫЕ', 'ВЫЕМКА', 'НАСЫПЬ', 'ПЛАНИРОВКА'],
+      ['КОТЛОВАН', 'ВЫЕМКА', 'РАЗРАБОТКА ГРУНТА'],
+      ['ВЫВОЗ', 'УТИЛИЗАЦИЯ', 'УДАЛЕНИЕ', 'ТРАНСПОРТИРОВКА'],
+
+      // Concrete/Reinforcement
+      ['БЕТОН', 'БЕТОНИРОВАНИЕ', 'БЕТОНН', 'МОНОЛИТ'],
+      ['АРМАТУРА', 'АРМАТУРН', 'АРМИРОВАНИЕ'],
+      ['ОПАЛУБКА', 'ОПАЛУБОЧН'],
+
+      // Piling
+      ['СВАЯ', 'СВАЙН', 'ШПУНТ', 'БУРОСЕКУЩ'],
+      ['ЗАБИВКА', 'ПОГРУЖЕНИЕ', 'УСТРОЙСТВО СВАЙ'],
+
+      // Waterproofing
+      ['ГИДРОИЗОЛЯЦИЯ', 'ГИДРОИЗОЛЯЦИОНН', 'ВЛАГОЗАЩИТА', 'ГИДРОЗАЩИТА'],
+
+      // Installation verbs - these are action modifiers, not work types themselves
+      ['МОНТАЖ', 'УСТАНОВКА', 'УСТРОЙСТВО', 'ВОЗВЕДЕНИЕ', 'СБОРКА'],
+      ['ДЕМОНТАЖ', 'РАЗБОРКА', 'СНЯТИЕ', 'УДАЛЕНИЕ'],
+
+      // Cables/Electrical
+      ['КАБЕЛЬ', 'ПРОВОД', 'ЭЛЕКТРОКАБЕЛЬ', 'СИЛОВОЙ'],
+      ['ОСВЕЩЕНИЕ', 'СВЕТИЛЬНИК', 'ЛАМПА', 'СВЕТ'],
+
+      // General materials
+      ['ПЛИТА', 'ПЛИТЫ', 'ПДП', 'ДОРОЖНАЯ ПЛИТА'],
+      ['ЛОТОК', 'ЖЕЛОБ', 'КАНАВА'],
+      ['АРЕНДА', 'ПРОКАТ', 'НАЙМ'],
+    ];
+
+    // Extract root keywords from item name
+    const extractRoots = (text: string): string[] => {
+      const upper = text.toUpperCase().replace(/[«»"'()]/g, '').replace(/\s+/g, ' ').trim();
+      // Split by spaces, slashes, and common separators
+      return upper.split(/[\s\/,;.]+/)
+        .filter(w => w.length > 2)
+        .map(w => w.replace(/(ОВ|АМИ|ЯМИ|ЫЙ|ИЙ|ОЙ|АЯ|ОЕ|ИЕ|ЫЕ|ОМ|ЕМ|АХ|ЯХ|ЫХ|ИХ|У|Ю|А|Я|Ы|И|Е|О)$/i, '')); // Basic Russian stemming
+    };
+
+    // Find synonyms for a word
+    const findSynonymGroup = (word: string): string[] | null => {
+      const upper = word.toUpperCase();
+      for (const group of synonymGroups) {
+        if (group.some(syn => upper.includes(syn) || syn.includes(upper))) {
+          return group;
+        }
+      }
+      return null;
+    };
+
+    // Calculate semantic similarity between two item names
+    const semanticSimilarity = (name1: string, name2: string): number => {
+      const roots1 = extractRoots(name1);
+      const roots2 = extractRoots(name2);
+
+      if (roots1.length === 0 || roots2.length === 0) return 0;
+
+      let matchScore = 0;
+      let totalChecks = 0;
+
+      for (const r1 of roots1) {
+        if (r1.length < 3) continue;
+        totalChecks++;
+
+        // Direct match
+        if (roots2.some(r2 => r1 === r2 || r1.includes(r2) || r2.includes(r1))) {
+          matchScore += 1;
+          continue;
+        }
+
+        // Synonym match
+        const synGroup = findSynonymGroup(r1);
+        if (synGroup) {
+          for (const r2 of roots2) {
+            if (synGroup.some(syn => r2.includes(syn) || syn.includes(r2))) {
+              matchScore += 0.8; // Slightly lower score for synonym match
+              break;
+            }
+          }
+        }
+      }
+
+      return totalChecks > 0 ? matchScore / totalChecks : 0;
+    };
+
+    // Generate semantic key for an item - combines significant roots and unit
+    const getSemanticKey = (item: BOQItem): string => {
+      const roots = extractRoots(item.name);
+      // Filter out common action verbs to focus on the actual work item
+      const actionVerbs = ['МОНТАЖ', 'УСТРОЙСТВО', 'УСТАНОВКА', 'ДЕМОНТАЖ', 'ВОЗВЕДЕНИЕ', 'СБОРКА', 'РАЗБОРКА'];
+      const significantRoots = roots.filter(r => !actionVerbs.some(v => r.includes(v) || v.includes(r)));
+
+      // Sort roots for consistent key generation
+      const sortedRoots = significantRoots.length > 0 ? significantRoots.sort().join('|') : roots.sort().join('|');
+      return `${sortedRoots}::${item.unit}`.toLowerCase();
+    };
+
+    // Create index for comparison with semantic matching
     const map1 = new Map<string, BOQItem[]>();
-    final1.forEach(i => { const k = normName(i.name); if (!map1.has(k)) map1.set(k, []); map1.get(k)!.push(i); });
+    final1.forEach(i => {
+      const k = getSemanticKey(i);
+      if (!map1.has(k)) map1.set(k, []);
+      map1.get(k)!.push(i);
+    });
+
     const map2 = new Map<string, BOQItem[]>();
-    final2.forEach(i => { const k = normName(i.name); if (!map2.has(k)) map2.set(k, []); map2.get(k)!.push(i); });
+    final2.forEach(i => {
+      const k = getSemanticKey(i);
+      if (!map2.has(k)) map2.set(k, []);
+      map2.get(k)!.push(i);
+    });
+
+    // For items without exact key match, try semantic matching
+    const findSemanticMatch = (item: BOQItem, targetMap: Map<string, BOQItem[]>, usedKeys: Set<string>): { key: string; items: BOQItem[] } | null => {
+      let bestMatch: { key: string; items: BOQItem[]; score: number } | null = null;
+
+      for (const [key, items] of targetMap.entries()) {
+        if (usedKeys.has(key)) continue;
+
+        // Must match unit
+        if (items[0].unit.toLowerCase() !== item.unit.toLowerCase()) continue;
+
+        const similarity = semanticSimilarity(item.name, items[0].name);
+        if (similarity >= 0.5) { // At least 50% match
+          if (!bestMatch || similarity > bestMatch.score) {
+            bestMatch = { key, items, score: similarity };
+          }
+        }
+      }
+
+      return bestMatch ? { key: bestMatch.key, items: bestMatch.items } : null;
+    };
 
     // Engineering analysis types
     type ChangeType = 'new' | 'removed' | 'price_change' | 'qty_change' | 'type_change' | 'price_qty_change';
@@ -1227,53 +1375,95 @@ function App() {
       }
     };
 
-    // Compare items
-    map2.forEach((list2, key) => {
-      const list1 = map1.get(key);
-      const item2 = list2[0];
+    // Track which items have been semantically matched (to avoid double counting)
+    const semanticallyMatchedMap1Keys = new Set<string>();
+    const semanticallyMatchedMap2Keys = new Set<string>();
+
+    // Helper to process a matched pair of items
+    const processMatchedPair = (
+      item1: BOQItem, list1: BOQItem[], key1: string,
+      item2: BOQItem, list2: BOQItem[], key2: string,
+      isSemanticMatch: boolean
+    ) => {
+      const sum1 = list1.reduce((s, i) => s + i.totalSum, 0);
+      const qty1 = list1.reduce((s, i) => s + i.quantity, 0);
       const sum2 = list2.reduce((s, i) => s + i.totalSum, 0);
       const qty2 = list2.reduce((s, i) => s + i.quantity, 0);
+      const diff = sum2 - sum1;
+
+      if (Math.abs(diff) > 50) {
+        const priceDiff = item2.pricePerUnit - item1.pricePerUnit;
+        const qtyDiff = qty2 - qty1;
+        const priceChanged = Math.abs(priceDiff) > 0.01;
+        const qtyChanged = Math.abs(qtyDiff) > 0.01;
+
+        let changeType: ChangeType = 'price_change';
+        let reason = '';
+
+        if (priceChanged && qtyChanged) {
+          changeType = 'price_qty_change';
+          reason = `Цена: ${priceDiff >= 0 ? '+' : ''}${priceDiff.toFixed(0)} ₽, Кол-во: ${qtyDiff >= 0 ? '+' : ''}${qtyDiff.toFixed(2)}`;
+        } else if (priceChanged) {
+          changeType = 'price_change';
+          const pct = item1.pricePerUnit !== 0 ? ((priceDiff / item1.pricePerUnit) * 100).toFixed(1) : '0';
+          reason = `Изменение цены за ед. на ${priceDiff >= 0 ? '+' : ''}${pct}%`;
+        } else if (qtyChanged) {
+          changeType = 'qty_change';
+          const pct = qty1 !== 0 ? ((qtyDiff / qty1) * 100).toFixed(1) : '0';
+          reason = `Изменение объёма на ${qtyDiff >= 0 ? '+' : ''}${pct}%`;
+        }
+
+        // For semantic matches, show both names in the display
+        const displayName = isSemanticMatch
+          ? `${item1.name.substring(0, 25)} ↔ ${item2.name.substring(0, 25)}`
+          : item2.name.substring(0, 35);
+
+        changes.push({
+          name: displayName,
+          workType: item2.constructionCost.substring(0, 20) || workTypeClean.substring(0, 20),
+          elementType: item2.elementType,
+          v1Price: item1.pricePerUnit, v1Qty: qty1, v1Unit: item1.unit,
+          v2Price: item2.pricePerUnit, v2Qty: qty2, v2Unit: item2.unit,
+          diff, changeType, reason,
+          comment: isSemanticMatch
+            ? `Семантическое сопоставление: "${item1.name.substring(0, 30)}" ≈ "${item2.name.substring(0, 30)}". ${getEngineeringComment(changeType, item2.elementType, priceDiff, qtyDiff)}`
+            : getEngineeringComment(changeType, item2.elementType, priceDiff, qtyDiff)
+        });
+      }
+
+      // Mark as matched
+      semanticallyMatchedMap1Keys.add(key1);
+      semanticallyMatchedMap2Keys.add(key2);
+    };
+
+    // Compare items - first pass: exact key matches
+    map2.forEach((list2, key2) => {
+      const list1 = map1.get(key2);
+      const item2 = list2[0];
 
       if (list1) {
-        const item1 = list1[0];
-        const sum1 = list1.reduce((s, i) => s + i.totalSum, 0);
-        const qty1 = list1.reduce((s, i) => s + i.quantity, 0);
-        const diff = sum2 - sum1;
+        // Exact key match found
+        processMatchedPair(list1[0], list1, key2, item2, list2, key2, false);
+      }
+    });
 
-        if (Math.abs(diff) > 50) {
-          const priceDiff = item2.pricePerUnit - item1.pricePerUnit;
-          const qtyDiff = qty2 - qty1;
-          const priceChanged = Math.abs(priceDiff) > 0.01;
-          const qtyChanged = Math.abs(qtyDiff) > 0.01;
+    // Second pass: semantic matching for unmatched items in map2
+    map2.forEach((list2, key2) => {
+      if (semanticallyMatchedMap2Keys.has(key2)) return; // Already matched
 
-          let changeType: ChangeType = 'price_change';
-          let reason = '';
+      const item2 = list2[0];
 
-          if (priceChanged && qtyChanged) {
-            changeType = 'price_qty_change';
-            reason = `Цена: ${priceDiff >= 0 ? '+' : ''}${priceDiff.toFixed(0)} ₽, Кол-во: ${qtyDiff >= 0 ? '+' : ''}${qtyDiff.toFixed(2)}`;
-          } else if (priceChanged) {
-            changeType = 'price_change';
-            const pct = item1.pricePerUnit !== 0 ? ((priceDiff / item1.pricePerUnit) * 100).toFixed(1) : '0';
-            reason = `Изменение цены за ед. на ${priceDiff >= 0 ? '+' : ''}${pct}%`;
-          } else if (qtyChanged) {
-            changeType = 'qty_change';
-            const pct = qty1 !== 0 ? ((qtyDiff / qty1) * 100).toFixed(1) : '0';
-            reason = `Изменение объёма на ${qtyDiff >= 0 ? '+' : ''}${pct}%`;
-          }
+      // Try to find semantic match in map1
+      const semanticMatch = findSemanticMatch(item2, map1, semanticallyMatchedMap1Keys);
 
-          changes.push({
-            name: item2.name.substring(0, 35),
-            workType: item2.constructionCost.substring(0, 20) || workTypeClean.substring(0, 20),
-            elementType: item2.elementType,
-            v1Price: item1.pricePerUnit, v1Qty: qty1, v1Unit: item1.unit,
-            v2Price: item2.pricePerUnit, v2Qty: qty2, v2Unit: item2.unit,
-            diff, changeType, reason,
-            comment: getEngineeringComment(changeType, item2.elementType, priceDiff, qtyDiff)
-          });
-        }
+      if (semanticMatch) {
+        // Found semantic match
+        const { key: key1, items: list1 } = semanticMatch;
+        processMatchedPair(list1[0], list1, key1, item2, list2, key2, true);
       } else {
-        // New item
+        // No match found - truly new item
+        const sum2 = list2.reduce((s, i) => s + i.totalSum, 0);
+        const qty2 = list2.reduce((s, i) => s + i.quantity, 0);
         changes.push({
           name: item2.name.substring(0, 35),
           workType: item2.constructionCost.substring(0, 20) || workTypeClean.substring(0, 20),
@@ -1284,13 +1474,21 @@ function App() {
           reason: 'Новая позиция в версии 2',
           comment: getEngineeringComment('new', item2.elementType, 0, 0)
         });
+        semanticallyMatchedMap2Keys.add(key2);
       }
     });
 
-    // Find removed items
-    map1.forEach((list1, key) => {
-      if (!map2.has(key)) {
-        const item1 = list1[0];
+    // Find truly removed items (not matched by either exact key or semantic matching)
+    map1.forEach((list1, key1) => {
+      if (semanticallyMatchedMap1Keys.has(key1)) return; // Already matched
+
+      const item1 = list1[0];
+
+      // Double-check with semantic match in reverse direction
+      const reverseSemanticMatch = findSemanticMatch(item1, map2, semanticallyMatchedMap2Keys);
+
+      if (!reverseSemanticMatch) {
+        // Truly removed
         const sum1 = list1.reduce((s, i) => s + i.totalSum, 0);
         const qty1 = list1.reduce((s, i) => s + i.quantity, 0);
         changes.push({
