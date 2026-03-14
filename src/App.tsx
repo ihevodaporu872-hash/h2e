@@ -19,6 +19,20 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'faq', label: 'Вопросы-Ответы', icon: '❓' },
 ];
 
+// Work sections for sidebar dropdown
+const WORK_SECTIONS = [
+  { id: 'section-1', num: '1', name: 'ВРЕМЕННЫЕ ЗДАНИЯ И СООРУЖЕНИЯ (ВЗиС)' },
+  { id: 'section-2', num: '2', name: 'НУЛЕВОЙ ЦИКЛ' },
+  { id: 'section-3', num: '3', name: 'МОНОЛИТНЫЕ РАБОТЫ' },
+  { id: 'section-4', num: '4', name: 'ГИДРОИЗОЛЯЦИОННЫЕ И КРОВЕЛЬНЫЕ РАБОТЫ' },
+  { id: 'section-5', num: '5', name: 'КЛАДОЧНЫЕ РАБОТЫ' },
+  { id: 'section-6', num: '6', name: 'МЕТАЛЛИЧЕСКИЕ КОНСТРУКЦИИ' },
+  { id: 'section-7', num: '7', name: 'ДВЕРИ, ЛЮКИ И ВОРОТА' },
+  { id: 'section-8', num: '8', name: 'ТЕХНОЛОГИЧЕСКИЕ РЕШЕНИЯ' },
+  { id: 'section-9', num: '9', name: 'БЛАГОУСТРОЙСТВО' },
+  { id: 'section-10', num: '10', name: 'ВЕРТИКАЛЬНЫЙ ТРАНСПОРТ' },
+];
+
 // Work categories (13 categories)
 const WORK_CATEGORIES = [
   'Монолитные работы',
@@ -387,6 +401,7 @@ function App() {
   });
   const [activeNav, setActiveNav] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sectionsExpanded, setSectionsExpanded] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [currentUser, setCurrentUser] = useState<string>('');
@@ -4912,7 +4927,76 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => (
+          {/* Главная */}
+          <button
+            className={`nav-item ${activeNav === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveNav('dashboard')}
+            title={sidebarCollapsed ? 'Главная' : undefined}
+          >
+            <span className="nav-icon">🏠</span>
+            {!sidebarCollapsed && <span className="nav-label">Главная</span>}
+          </button>
+
+          {/* Разделы dropdown */}
+          {!sidebarCollapsed && (
+            <div className="nav-section">
+              <button
+                className="nav-section-header"
+                onClick={() => setSectionsExpanded(!sectionsExpanded)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.75rem 1rem',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  marginTop: '0.5rem'
+                }}
+              >
+                <span>Разделы</span>
+                <span style={{ fontSize: '0.625rem', transition: 'transform 0.2s', transform: sectionsExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+              </button>
+              {sectionsExpanded && (
+                <div className="nav-section-items" style={{ paddingLeft: '0.5rem' }}>
+                  {WORK_SECTIONS.map(section => (
+                    <button
+                      key={section.id}
+                      className={`nav-item nav-subitem ${activeNav === section.id ? 'active' : ''}`}
+                      onClick={() => setActiveNav(section.id)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        padding: '0.5rem 0.75rem',
+                        background: activeNav === section.id ? 'var(--bg-tertiary)' : 'transparent',
+                        border: 'none',
+                        borderRadius: '6px',
+                        color: activeNav === section.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        fontSize: '0.8rem',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        marginBottom: '2px',
+                        lineHeight: '1.3'
+                      }}
+                    >
+                      <span style={{ minWidth: '1.5rem', color: 'var(--accent-color)', fontWeight: '500' }}>{section.num}.</span>
+                      <span style={{ flex: 1 }}>{section.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Other nav items */}
+          {NAV_ITEMS.slice(1).map(item => (
             <button key={item.id} className={`nav-item ${activeNav === item.id ? 'active' : ''}`} onClick={() => setActiveNav(item.id)} title={sidebarCollapsed ? item.label : undefined}>
               <span className="nav-icon">{item.icon}</span>
               {!sidebarCollapsed && <span className="nav-label">{item.label}</span>}
