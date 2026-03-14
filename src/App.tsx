@@ -11,7 +11,7 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Дашборд', icon: '📊' },
+  { id: 'dashboard', label: 'Главная', icon: '🏠' },
   { id: 'indicators', label: 'Основные показатели', icon: '📈' },
   { id: 'checklist', label: 'Чеклист', icon: '✅' },
   { id: 'nuances', label: 'Нюансы', icon: '⚠️' },
@@ -3645,14 +3645,112 @@ function App() {
       case 'dashboard':
         return (
           <div className="page-content">
-            <h1>Дашборд</h1>
+            <h1>Главная</h1>
             <p className="page-description">Обзор ключевых метрик и показателей проекта</p>
             <div className="stats-grid">
-              <div className="stat-card"><div className="stat-icon">📋</div><div className="stat-info"><span className="stat-value">24</span><span className="stat-label">Активных проектов</span></div></div>
-              <div className="stat-card"><div className="stat-icon">📄</div><div className="stat-info"><span className="stat-value">156</span><span className="stat-label">Документов</span></div></div>
+              <div className="stat-card"><div className="stat-icon">📋</div><div className="stat-info"><span className="stat-value">{tenderProjects.length}</span><span className="stat-label">Активных проектов</span></div></div>
+              <div className="stat-card"><div className="stat-icon">📄</div><div className="stat-info"><span className="stat-value">{tenderProjects.reduce((acc, p) => acc + p.files.length, 0)}</span><span className="stat-label">Документов</span></div></div>
               <div className="stat-card"><div className="stat-icon">⚠️</div><div className="stat-info"><span className="stat-value">8</span><span className="stat-label">Требуют внимания</span></div></div>
               <div className="stat-card"><div className="stat-icon">✅</div><div className="stat-info"><span className="stat-value">92%</span><span className="stat-label">Выполнено</span></div></div>
             </div>
+
+            {/* New Tender Project Form */}
+            <div className="new-project-section" style={{ marginTop: '2rem' }}>
+              <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Создать новый тендерный проект</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const input = form.elements.namedItem('projectName') as HTMLInputElement;
+                const projectName = input.value.trim();
+                if (projectName) {
+                  const newProject: TenderProject = {
+                    id: `project-${Date.now()}`,
+                    name: projectName,
+                    code: `PRJ-${(tenderProjects.length + 1).toString().padStart(3, '0')}`,
+                    files: [],
+                    expanded: false
+                  };
+                  setTenderProjects(prev => [...prev, newProject]);
+                  input.value = '';
+                }
+              }} style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  name="projectName"
+                  placeholder="Введите название проекта (например: 305. Поликлиника)"
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '1rem'
+                  }}
+                />
+                <button
+                  type="submit"
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: 'var(--accent-color)',
+                    color: 'white',
+                    fontSize: '1rem',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Создать проект
+                </button>
+              </form>
+            </div>
+
+            {/* List of existing projects */}
+            {tenderProjects.length > 0 && (
+              <div className="projects-list" style={{ marginTop: '2rem' }}>
+                <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Тендерные проекты</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {tenderProjects.map(project => (
+                    <div
+                      key={project.id}
+                      style={{
+                        padding: '1rem',
+                        backgroundColor: 'var(--bg-secondary)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <div>
+                        <span style={{ fontWeight: '500' }}>{project.name}</span>
+                        <span style={{ marginLeft: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                          {project.files.length} файл(ов)
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setTenderProjects(prev => prev.filter(p => p.id !== project.id));
+                        }}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: 'transparent',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem'
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
       case 'indicators':
