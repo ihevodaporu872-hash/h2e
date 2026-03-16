@@ -497,6 +497,7 @@ function App() {
   }
 
   const [selectedProjectForAgents, setSelectedProjectForAgents] = useState<string>('');
+  const [selectedSectionForAgents, setSelectedSectionForAgents] = useState<string>('');
   const [agentStates, setAgentStates] = useState<Record<AgentType, AgentState>>({
     'archivist': { status: 'idle', prompt: '', result: null, error: null },
     'risk-auditor': { status: 'idle', prompt: '', result: null, error: null },
@@ -3886,6 +3887,34 @@ function App() {
                       <option value="">-- Выберите проект --</option>
                       {tenderProjects.map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Section selector */}
+                  <div style={{ flex: '1', minWidth: '250px' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Раздел:
+                    </label>
+                    <select
+                      value={selectedSectionForAgents}
+                      onChange={(e) => setSelectedSectionForAgents(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 1rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.95rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">-- Все разделы --</option>
+                      {WORK_SECTIONS.map(section => (
+                        <option key={section.id} value={section.id}>
+                          {section.num}. {section.name}
+                        </option>
                       ))}
                     </select>
                   </div>
