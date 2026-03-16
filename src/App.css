@@ -4912,3 +4912,18 @@ body {
   color: white;
   border-color: var(--primary);
 }
+
+/* AI Agent Panel Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.agent-panel textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}

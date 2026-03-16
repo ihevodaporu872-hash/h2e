@@ -485,6 +485,87 @@ function App() {
   const [boqAnalysisResult, setBOQAnalysisResult] = useState<string | null>(null);
   const boqFileInputRef = useRef<HTMLInputElement>(null);
 
+  // AI Agent Panel state
+  type AgentType = 'archivist' | 'risk-auditor' | 'technical' | 'zero-boq' | 'interrogator';
+  type AgentStatus = 'idle' | 'running' | 'complete' | 'error';
+
+  interface AgentState {
+    status: AgentStatus;
+    prompt: string;
+    result: string | null;
+    error: string | null;
+  }
+
+  const [selectedProjectForAgents, setSelectedProjectForAgents] = useState<string>('');
+  const [agentStates, setAgentStates] = useState<Record<AgentType, AgentState>>({
+    'archivist': { status: 'idle', prompt: '', result: null, error: null },
+    'risk-auditor': { status: 'idle', prompt: '', result: null, error: null },
+    'technical': { status: 'idle', prompt: '', result: null, error: null },
+    'zero-boq': { status: 'idle', prompt: '', result: null, error: null },
+    'interrogator': { status: 'idle', prompt: '', result: null, error: null },
+  });
+  const [expandedAgent, setExpandedAgent] = useState<AgentType | null>(null);
+
+  const agentInfo: Record<AgentType, { name: string; nameRu: string; icon: string; description: string }> = {
+    'archivist': {
+      name: 'Archivist',
+      nameRu: 'Анализатор Комплектности',
+      icon: '📋',
+      description: 'Сканирует загруженные документы, проверяет комплектность (ПЗ, АР, КР, КЖ и др.), выявляет недостающую документацию и определяет приоритет доверия документам.'
+    },
+    'risk-auditor': {
+      name: 'Risk Auditor',
+      nameRu: 'Анализатор Рисков',
+      icon: '⚠️',
+      description: 'Анализирует ДГП, ТЗ, ПОС и геологию (ИГИ). Выявляет коммерческие и технические ловушки, скрытые затраты, противоречия в документации.'
+    },
+    'technical': {
+      name: 'Technical Estimator',
+      nameRu: 'Технический Аудитор',
+      icon: '🔍',
+      description: 'Сравнивает Excel ВОР с PDF чертежами. Находит расхождения материалов, заниженные объёмы, неучтённые работы по СНиП/ГОСТ.'
+    },
+    'zero-boq': {
+      name: 'Zero-BOQ Generator',
+      nameRu: 'Генератор ВОР',
+      icon: '📊',
+      description: 'Создаёт ведомость объёмов работ с нуля по чертежам. Извлекает материалы, объёмы, спецификации из всего пакета ПД.'
+    },
+    'interrogator': {
+      name: 'Interrogator',
+      nameRu: 'Генератор Вопросов',
+      icon: '❓',
+      description: 'Формирует профессиональные RFI-вопросы заказчику на основе выявленных рисков и расхождений. Готовый документ для отправки.'
+    },
+  };
+
+  const updateAgentState = (agent: AgentType, updates: Partial<AgentState>) => {
+    setAgentStates(prev => ({
+      ...prev,
+      [agent]: { ...prev[agent], ...updates }
+    }));
+  };
+
+  const runAgent = async (agent: AgentType) => {
+    const projectId = selectedProjectForAgents;
+    if (!projectId) {
+      updateAgentState(agent, { error: 'Выберите проект для анализа' });
+      return;
+    }
+
+    updateAgentState(agent, { status: 'running', error: null, result: null });
+
+    // TODO: Replace with actual API call to your backend
+    // Example: POST /api/projects/:id/agents/:agentType
+    // For now, simulate with timeout
+    setTimeout(() => {
+      updateAgentState(agent, {
+        status: 'complete',
+        result: `[Демо] Агент "${agentInfo[agent].nameRu}" завершил анализ проекта.\n\nДля работы агентов необходимо:\n1. Подключить backend API (tender_engine)\n2. Загрузить документы проекта\n\nПромпт: ${agentStates[agent].prompt || '(не указан)'}`
+      });
+    }, 2000);
+  };
+
   // Checklist page state
   const [checklistProjects, setChecklistProjects] = useState<ChecklistProject[]>([]);
   const [checklistFilter, setChecklistFilter] = useState<string>('all');
@@ -3763,6 +3844,229 @@ function App() {
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* AI Agent Panel */}
+            {tenderProjects.length > 0 && (
+              <div className="agent-panel" style={{ marginTop: '2.5rem' }}>
+                <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>🤖</span> AI Инженерный Отдел
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                  Выберите проект и запустите AI-агентов для автоматического анализа тендерной документации
+                </p>
+
+                {/* Project selector for agents */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.9rem' }}>
+                    Проект для анализа:
+                  </label>
+                  <select
+                    value={selectedProjectForAgents}
+                    onChange={(e) => setSelectedProjectForAgents(e.target.value)}
+                    style={{
+                      width: '100%',
+                      maxWidth: '400px',
+                      padding: '0.75rem 1rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      fontSize: '1rem'
+                    }}
+                  >
+                    <option value="">-- Выберите проект --</option>
+                    {tenderProjects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.files.length} файлов)</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Agent Cards Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                  gap: '1rem'
+                }}>
+                  {(Object.keys(agentInfo) as AgentType[]).map(agentKey => {
+                    const agent = agentInfo[agentKey];
+                    const state = agentStates[agentKey];
+                    const isExpanded = expandedAgent === agentKey;
+
+                    return (
+                      <div
+                        key={agentKey}
+                        style={{
+                          backgroundColor: 'var(--bg-secondary)',
+                          borderRadius: '12px',
+                          border: `1px solid ${state.status === 'running' ? 'var(--accent-color)' : state.status === 'complete' ? '#22c55e' : state.status === 'error' ? '#ef4444' : 'var(--border-color)'}`,
+                          overflow: 'hidden',
+                          transition: 'border-color 0.2s'
+                        }}
+                      >
+                        {/* Agent Header */}
+                        <div
+                          onClick={() => setExpandedAgent(isExpanded ? null : agentKey)}
+                          style={{
+                            padding: '1rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem'
+                          }}
+                        >
+                          <span style={{ fontSize: '1.5rem' }}>{agent.icon}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                              <span style={{ fontWeight: '600', fontSize: '1rem' }}>{agent.nameRu}</span>
+                              {state.status === 'running' && (
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  padding: '2px 6px',
+                                  backgroundColor: 'var(--accent-color)',
+                                  color: 'white',
+                                  borderRadius: '4px',
+                                  animation: 'pulse 1.5s infinite'
+                                }}>Работает...</span>
+                              )}
+                              {state.status === 'complete' && (
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  padding: '2px 6px',
+                                  backgroundColor: '#22c55e',
+                                  color: 'white',
+                                  borderRadius: '4px'
+                                }}>Готово</span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{agent.name}</span>
+                          </div>
+                          <span style={{
+                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                            color: 'var(--text-secondary)'
+                          }}>▼</span>
+                        </div>
+
+                        {/* Agent Description */}
+                        <div style={{
+                          padding: '0 1rem',
+                          paddingBottom: isExpanded ? '0' : '1rem'
+                        }}>
+                          <p style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--text-secondary)',
+                            lineHeight: '1.4',
+                            margin: 0
+                          }}>{agent.description}</p>
+                        </div>
+
+                        {/* Expanded Content */}
+                        {isExpanded && (
+                          <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', marginTop: '0.5rem' }}>
+                            {/* Prompt Input */}
+                            <div style={{ marginBottom: '1rem' }}>
+                              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: '500' }}>
+                                Дополнительные инструкции (опционально):
+                              </label>
+                              <textarea
+                                value={state.prompt}
+                                onChange={(e) => updateAgentState(agentKey, { prompt: e.target.value })}
+                                placeholder="Например: Обратить особое внимание на раздел КЖ..."
+                                disabled={state.status === 'running'}
+                                style={{
+                                  width: '100%',
+                                  minHeight: '80px',
+                                  padding: '0.75rem',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  backgroundColor: 'var(--bg-primary)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.875rem',
+                                  resize: 'vertical'
+                                }}
+                              />
+                            </div>
+
+                            {/* Run Button */}
+                            <button
+                              onClick={() => runAgent(agentKey)}
+                              disabled={state.status === 'running' || !selectedProjectForAgents}
+                              style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '8px',
+                                border: 'none',
+                                backgroundColor: state.status === 'running' ? 'var(--border-color)' : 'var(--accent-color)',
+                                color: 'white',
+                                fontSize: '0.9rem',
+                                fontWeight: '500',
+                                cursor: state.status === 'running' || !selectedProjectForAgents ? 'not-allowed' : 'pointer',
+                                opacity: !selectedProjectForAgents ? 0.5 : 1
+                              }}
+                            >
+                              {state.status === 'running' ? '⏳ Анализ...' : '▶️ Запустить агента'}
+                            </button>
+
+                            {/* Error Display */}
+                            {state.error && (
+                              <div style={{
+                                marginTop: '1rem',
+                                padding: '0.75rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid #ef4444',
+                                borderRadius: '8px',
+                                color: '#ef4444',
+                                fontSize: '0.85rem'
+                              }}>
+                                {state.error}
+                              </div>
+                            )}
+
+                            {/* Results Display */}
+                            {state.result && (
+                              <div style={{
+                                marginTop: '1rem',
+                                padding: '0.75rem',
+                                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                border: '1px solid #22c55e',
+                                borderRadius: '8px',
+                                fontSize: '0.85rem'
+                              }}>
+                                <div style={{ fontWeight: '500', marginBottom: '0.5rem', color: '#22c55e' }}>Результат:</div>
+                                <pre style={{
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  margin: 0,
+                                  fontFamily: 'inherit',
+                                  color: 'var(--text-primary)'
+                                }}>{state.result}</pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Backend Connection Note */}
+                <div style={{
+                  marginTop: '1.5rem',
+                  padding: '1rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-secondary)'
+                }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>ℹ️ Подключение Backend API:</strong>
+                  <br />
+                  Для полноценной работы агентов необходимо подключить <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: '4px' }}>tender_engine</code> backend.
+                  <br />
+                  API endpoint: <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: '4px' }}>POST /api/projects/:id/agents/:agentType</code>
                 </div>
               </div>
             )}
