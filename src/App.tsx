@@ -486,7 +486,7 @@ function App() {
   const boqFileInputRef = useRef<HTMLInputElement>(null);
 
   // AI Agent Panel state
-  type AgentType = 'archivist' | 'risk-auditor' | 'technical' | 'zero-boq' | 'interrogator';
+  type AgentType = 'archivist' | 'risk-auditor' | 'boq-engine' | 'technical' | 'zero-boq' | 'interrogator';
   type AgentStatus = 'idle' | 'running' | 'complete' | 'error';
 
   interface AgentState {
@@ -500,6 +500,7 @@ function App() {
   const [agentStates, setAgentStates] = useState<Record<AgentType, AgentState>>({
     'archivist': { status: 'idle', prompt: '', result: null, error: null },
     'risk-auditor': { status: 'idle', prompt: '', result: null, error: null },
+    'boq-engine': { status: 'idle', prompt: '', result: null, error: null },
     'technical': { status: 'idle', prompt: '', result: null, error: null },
     'zero-boq': { status: 'idle', prompt: '', result: null, error: null },
     'interrogator': { status: 'idle', prompt: '', result: null, error: null },
@@ -518,6 +519,12 @@ function App() {
       nameRu: 'Анализатор Рисков',
       icon: '⚠️',
       description: 'Анализирует ДГП, ТЗ, ПОС и геологию (ИГИ). Выявляет коммерческие и технические ловушки, скрытые затраты, противоречия в документации.'
+    },
+    'boq-engine': {
+      name: 'AI BOQ ENGINE',
+      nameRu: 'Классификатор ВОР',
+      icon: '🏗️',
+      description: 'Главный движок классификации. Распределяет все позиции по 10 мастер-разделам (ВЗиС, Нулевой цикл, Монолит, КР, и др.). Извлекает спецификации из чертежей: класс бетона (B30 W8 F150), арматуру (A500C), размеры. Обеспечивает трассировку источника данных.'
     },
     'technical': {
       name: 'Technical Estimator',
