@@ -3861,220 +3861,231 @@ function App() {
                 <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span>🤖</span> AI Инженерный Отдел
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                  Выберите проект и запустите AI-агентов для автоматического анализа тендерной документации
-                </p>
 
-                {/* Project selector for agents */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.9rem' }}>
-                    Проект для анализа:
-                  </label>
-                  <select
-                    value={selectedProjectForAgents}
-                    onChange={(e) => setSelectedProjectForAgents(e.target.value)}
-                    style={{
-                      width: '100%',
-                      maxWidth: '400px',
-                      padding: '0.75rem 1rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      fontSize: '1rem'
-                    }}
-                  >
-                    <option value="">-- Выберите проект --</option>
-                    {tenderProjects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.files.length} файлов)</option>
-                    ))}
-                  </select>
+                {/* Two dropdowns in a row */}
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                  {/* Project selector */}
+                  <div style={{ flex: '1', minWidth: '250px' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Проект:
+                    </label>
+                    <select
+                      value={selectedProjectForAgents}
+                      onChange={(e) => setSelectedProjectForAgents(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 1rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.95rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">-- Выберите проект --</option>
+                      {tenderProjects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Agent selector */}
+                  <div style={{ flex: '1', minWidth: '250px' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      AI Агент:
+                    </label>
+                    <select
+                      value={expandedAgent || ''}
+                      onChange={(e) => setExpandedAgent(e.target.value as AgentType || null)}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 1rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.95rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">-- Выберите агента --</option>
+                      {(Object.keys(agentInfo) as AgentType[]).map(key => (
+                        <option key={key} value={key}>
+                          {agentInfo[key].icon} {agentInfo[key].nameRu}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                {/* Agent Cards Grid */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                  gap: '1rem'
-                }}>
-                  {(Object.keys(agentInfo) as AgentType[]).map(agentKey => {
-                    const agent = agentInfo[agentKey];
-                    const state = agentStates[agentKey];
-                    const isExpanded = expandedAgent === agentKey;
+                {/* Selected Agent Panel */}
+                {expandedAgent && (
+                  <div style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderRadius: '12px',
+                    border: `2px solid ${agentStates[expandedAgent].status === 'running' ? 'var(--accent-color)' : agentStates[expandedAgent].status === 'complete' ? '#22c55e' : 'var(--border-color)'}`,
+                    overflow: 'hidden'
+                  }}>
+                    {/* Agent Header */}
+                    <div style={{
+                      padding: '1.25rem',
+                      borderBottom: '1px solid var(--border-color)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem'
+                    }}>
+                      <span style={{ fontSize: '2rem' }}>{agentInfo[expandedAgent].icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>{agentInfo[expandedAgent].nameRu}</h3>
+                          {agentStates[expandedAgent].status === 'running' && (
+                            <span style={{
+                              fontSize: '0.75rem',
+                              padding: '3px 8px',
+                              backgroundColor: 'var(--accent-color)',
+                              color: 'white',
+                              borderRadius: '4px',
+                              animation: 'pulse 1.5s infinite'
+                            }}>Работает...</span>
+                          )}
+                          {agentStates[expandedAgent].status === 'complete' && (
+                            <span style={{
+                              fontSize: '0.75rem',
+                              padding: '3px 8px',
+                              backgroundColor: '#22c55e',
+                              color: 'white',
+                              borderRadius: '4px'
+                            }}>Готово</span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{agentInfo[expandedAgent].name}</span>
+                      </div>
+                    </div>
 
-                    return (
-                      <div
-                        key={agentKey}
+                    {/* Agent Description */}
+                    <div style={{ padding: '1rem 1.25rem', backgroundColor: 'var(--bg-primary)' }}>
+                      <p style={{
+                        fontSize: '0.9rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: '1.5',
+                        margin: 0
+                      }}>{agentInfo[expandedAgent].description}</p>
+                    </div>
+
+                    {/* Agent Input & Controls */}
+                    <div style={{ padding: '1.25rem' }}>
+                      {/* Prompt Input */}
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '500' }}>
+                          Инструкции для агента:
+                        </label>
+                        <textarea
+                          value={agentStates[expandedAgent].prompt}
+                          onChange={(e) => updateAgentState(expandedAgent, { prompt: e.target.value })}
+                          placeholder="Введите ваш запрос или дополнительные инструкции для агента..."
+                          disabled={agentStates[expandedAgent].status === 'running'}
+                          style={{
+                            width: '100%',
+                            minHeight: '100px',
+                            padding: '0.875rem',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color)',
+                            backgroundColor: 'var(--bg-primary)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.9rem',
+                            resize: 'vertical',
+                            lineHeight: '1.5'
+                          }}
+                        />
+                      </div>
+
+                      {/* Run Button */}
+                      <button
+                        onClick={() => runAgent(expandedAgent)}
+                        disabled={agentStates[expandedAgent].status === 'running' || !selectedProjectForAgents}
                         style={{
-                          backgroundColor: 'var(--bg-secondary)',
-                          borderRadius: '12px',
-                          border: `1px solid ${state.status === 'running' ? 'var(--accent-color)' : state.status === 'complete' ? '#22c55e' : state.status === 'error' ? '#ef4444' : 'var(--border-color)'}`,
-                          overflow: 'hidden',
-                          transition: 'border-color 0.2s'
+                          width: '100%',
+                          padding: '0.875rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: agentStates[expandedAgent].status === 'running' ? 'var(--border-color)' : !selectedProjectForAgents ? 'var(--border-color)' : 'var(--accent-color)',
+                          color: 'white',
+                          fontSize: '1rem',
+                          fontWeight: '600',
+                          cursor: agentStates[expandedAgent].status === 'running' || !selectedProjectForAgents ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem'
                         }}
                       >
-                        {/* Agent Header */}
-                        <div
-                          onClick={() => setExpandedAgent(isExpanded ? null : agentKey)}
-                          style={{
-                            padding: '1rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '0.75rem'
-                          }}
-                        >
-                          <span style={{ fontSize: '1.5rem' }}>{agent.icon}</span>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                              <span style={{ fontWeight: '600', fontSize: '1rem' }}>{agent.nameRu}</span>
-                              {state.status === 'running' && (
-                                <span style={{
-                                  fontSize: '0.7rem',
-                                  padding: '2px 6px',
-                                  backgroundColor: 'var(--accent-color)',
-                                  color: 'white',
-                                  borderRadius: '4px',
-                                  animation: 'pulse 1.5s infinite'
-                                }}>Работает...</span>
-                              )}
-                              {state.status === 'complete' && (
-                                <span style={{
-                                  fontSize: '0.7rem',
-                                  padding: '2px 6px',
-                                  backgroundColor: '#22c55e',
-                                  color: 'white',
-                                  borderRadius: '4px'
-                                }}>Готово</span>
-                              )}
-                            </div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{agent.name}</span>
-                          </div>
-                          <span style={{
-                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                            transition: 'transform 0.2s',
-                            color: 'var(--text-secondary)'
-                          }}>▼</span>
-                        </div>
-
-                        {/* Agent Description */}
-                        <div style={{
-                          padding: '0 1rem',
-                          paddingBottom: isExpanded ? '0' : '1rem'
-                        }}>
-                          <p style={{
-                            fontSize: '0.8rem',
-                            color: 'var(--text-secondary)',
-                            lineHeight: '1.4',
-                            margin: 0
-                          }}>{agent.description}</p>
-                        </div>
-
-                        {/* Expanded Content */}
-                        {isExpanded && (
-                          <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', marginTop: '0.5rem' }}>
-                            {/* Prompt Input */}
-                            <div style={{ marginBottom: '1rem' }}>
-                              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: '500' }}>
-                                Дополнительные инструкции (опционально):
-                              </label>
-                              <textarea
-                                value={state.prompt}
-                                onChange={(e) => updateAgentState(agentKey, { prompt: e.target.value })}
-                                placeholder="Например: Обратить особое внимание на раздел КЖ..."
-                                disabled={state.status === 'running'}
-                                style={{
-                                  width: '100%',
-                                  minHeight: '80px',
-                                  padding: '0.75rem',
-                                  borderRadius: '8px',
-                                  border: '1px solid var(--border-color)',
-                                  backgroundColor: 'var(--bg-primary)',
-                                  color: 'var(--text-primary)',
-                                  fontSize: '0.875rem',
-                                  resize: 'vertical'
-                                }}
-                              />
-                            </div>
-
-                            {/* Run Button */}
-                            <button
-                              onClick={() => runAgent(agentKey)}
-                              disabled={state.status === 'running' || !selectedProjectForAgents}
-                              style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                borderRadius: '8px',
-                                border: 'none',
-                                backgroundColor: state.status === 'running' ? 'var(--border-color)' : 'var(--accent-color)',
-                                color: 'white',
-                                fontSize: '0.9rem',
-                                fontWeight: '500',
-                                cursor: state.status === 'running' || !selectedProjectForAgents ? 'not-allowed' : 'pointer',
-                                opacity: !selectedProjectForAgents ? 0.5 : 1
-                              }}
-                            >
-                              {state.status === 'running' ? '⏳ Анализ...' : '▶️ Запустить агента'}
-                            </button>
-
-                            {/* Error Display */}
-                            {state.error && (
-                              <div style={{
-                                marginTop: '1rem',
-                                padding: '0.75rem',
-                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                border: '1px solid #ef4444',
-                                borderRadius: '8px',
-                                color: '#ef4444',
-                                fontSize: '0.85rem'
-                              }}>
-                                {state.error}
-                              </div>
-                            )}
-
-                            {/* Results Display */}
-                            {state.result && (
-                              <div style={{
-                                marginTop: '1rem',
-                                padding: '0.75rem',
-                                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                                border: '1px solid #22c55e',
-                                borderRadius: '8px',
-                                fontSize: '0.85rem'
-                              }}>
-                                <div style={{ fontWeight: '500', marginBottom: '0.5rem', color: '#22c55e' }}>Результат:</div>
-                                <pre style={{
-                                  whiteSpace: 'pre-wrap',
-                                  wordBreak: 'break-word',
-                                  margin: 0,
-                                  fontFamily: 'inherit',
-                                  color: 'var(--text-primary)'
-                                }}>{state.result}</pre>
-                              </div>
-                            )}
-                          </div>
+                        {agentStates[expandedAgent].status === 'running' ? (
+                          <>⏳ Анализ выполняется...</>
+                        ) : !selectedProjectForAgents ? (
+                          <>⚠️ Сначала выберите проект</>
+                        ) : (
+                          <>▶️ Запустить {agentInfo[expandedAgent].nameRu}</>
                         )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      </button>
 
-                {/* Backend Connection Note */}
-                <div style={{
-                  marginTop: '1.5rem',
-                  padding: '1rem',
-                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                  border: '1px solid rgba(59, 130, 246, 0.3)',
-                  borderRadius: '8px',
-                  fontSize: '0.85rem',
-                  color: 'var(--text-secondary)'
-                }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>ℹ️ Подключение Backend API:</strong>
-                  <br />
-                  Для полноценной работы агентов необходимо подключить <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: '4px' }}>tender_engine</code> backend.
-                  <br />
-                  API endpoint: <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: '4px' }}>POST /api/projects/:id/agents/:agentType</code>
-                </div>
+                      {/* Error Display */}
+                      {agentStates[expandedAgent].error && (
+                        <div style={{
+                          marginTop: '1rem',
+                          padding: '1rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid #ef4444',
+                          borderRadius: '8px',
+                          color: '#ef4444',
+                          fontSize: '0.9rem'
+                        }}>
+                          <strong>Ошибка:</strong> {agentStates[expandedAgent].error}
+                        </div>
+                      )}
+
+                      {/* Results Display */}
+                      {agentStates[expandedAgent].result && (
+                        <div style={{
+                          marginTop: '1rem',
+                          padding: '1rem',
+                          backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                          border: '1px solid #22c55e',
+                          borderRadius: '8px'
+                        }}>
+                          <div style={{ fontWeight: '600', marginBottom: '0.75rem', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            ✅ Результат анализа:
+                          </div>
+                          <pre style={{
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            margin: 0,
+                            fontFamily: 'inherit',
+                            fontSize: '0.9rem',
+                            lineHeight: '1.6',
+                            color: 'var(--text-primary)'
+                          }}>{agentStates[expandedAgent].result}</pre>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Placeholder when no agent selected */}
+                {!expandedAgent && (
+                  <div style={{
+                    padding: '3rem 2rem',
+                    textAlign: 'center',
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderRadius: '12px',
+                    border: '1px dashed var(--border-color)'
+                  }}>
+                    <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem', opacity: 0.5 }}>🤖</span>
+                    <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.95rem' }}>
+                      Выберите AI-агента из списка выше для анализа тендерной документации
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
