@@ -3810,42 +3810,144 @@ function App() {
             {tenderProjects.length > 0 && (
               <div className="projects-list" style={{ marginTop: '2rem' }}>
                 <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Тендерные проекты</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {tenderProjects.map(project => (
                     <div
                       key={project.id}
                       style={{
-                        padding: '1rem',
+                        padding: '1.25rem',
                         backgroundColor: 'var(--bg-secondary)',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-color)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-color)'
                       }}
                     >
-                      <div>
-                        <span style={{ fontWeight: '500' }}>{project.name}</span>
-                        <span style={{ marginLeft: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                          {project.files.length} файл(ов)
-                        </span>
+                      {/* Project header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <div>
+                          <span style={{ fontWeight: '600', fontSize: '1.1rem' }}>{project.name}</span>
+                          <span style={{ marginLeft: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                            {project.files.length} файл(ов)
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setTenderProjects(prev => prev.filter(p => p.id !== project.id));
+                          }}
+                          style={{
+                            padding: '0.4rem 0.75rem',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-color)',
+                            backgroundColor: 'transparent',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          Удалить
+                        </button>
                       </div>
-                      <button
-                        onClick={() => {
-                          setTenderProjects(prev => prev.filter(p => p.id !== project.id));
-                        }}
-                        style={{
-                          padding: '0.5rem 1rem',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border-color)',
-                          backgroundColor: 'transparent',
-                          color: 'var(--text-secondary)',
-                          cursor: 'pointer',
-                          fontSize: '0.875rem'
-                        }}
-                      >
-                        Удалить
-                      </button>
+
+                      {/* Upload BOQ section */}
+                      <div style={{
+                        padding: '1rem',
+                        backgroundColor: 'var(--bg-primary)',
+                        borderRadius: '8px',
+                        border: '1px dashed var(--border-color)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '1.5rem' }}>📄</span>
+                            <div>
+                              <div style={{ fontWeight: '500', fontSize: '0.95rem' }}>Загрузить ВОР Заказчика</div>
+                              <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Excel файл с ведомостью объёмов работ</div>
+                            </div>
+                          </div>
+                          <label style={{
+                            padding: '0.6rem 1.25rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: 'var(--accent-color)',
+                            color: 'white',
+                            fontSize: '0.9rem',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                          }}>
+                            <span>📤</span> Выбрать файл
+                            <input
+                              type="file"
+                              accept=".xlsx,.xls"
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  // Add file to project
+                                  const newFile: TenderFile = {
+                                    id: `file-${Date.now()}`,
+                                    name: file.name,
+                                    uploadedAt: new Date().toISOString(),
+                                    calculationDate: new Date().toISOString().split('T')[0],
+                                    sections: [],
+                                    expanded: false
+                                  };
+                                  setTenderProjects(prev => prev.map(p =>
+                                    p.id === project.id
+                                      ? { ...p, files: [...p.files, newFile] }
+                                      : p
+                                  ));
+                                  e.target.value = '';
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Show uploaded files */}
+                        {project.files.length > 0 && (
+                          <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {project.files.map(file => (
+                              <div
+                                key={file.id}
+                                style={{
+                                  padding: '0.75rem',
+                                  backgroundColor: 'var(--bg-secondary)',
+                                  borderRadius: '6px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <span>📊</span>
+                                  <span style={{ fontSize: '0.9rem' }}>{file.name}</span>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setTenderProjects(prev => prev.map(p =>
+                                      p.id === project.id
+                                        ? { ...p, files: p.files.filter(f => f.id !== file.id) }
+                                        : p
+                                    ));
+                                  }}
+                                  style={{
+                                    padding: '0.25rem 0.5rem',
+                                    borderRadius: '4px',
+                                    border: 'none',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem'
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
