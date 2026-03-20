@@ -12,6 +12,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Главная', icon: '🏠' },
+  { id: 'ai-start', label: 'ИИ-СТАРТ', icon: '🚀' },
   { id: 'indicators', label: 'Основные показатели', icon: '📈' },
   { id: 'checklist', label: 'Чеклист', icon: '✅' },
   { id: 'nuances', label: 'Нюансы', icon: '⚠️' },
@@ -3750,16 +3751,10 @@ function App() {
         return (
           <div className="page-content">
             <h1>Главная</h1>
-            <p className="page-description">Обзор ключевых метрик и показателей проекта</p>
-            <div className="stats-grid">
-              <div className="stat-card"><div className="stat-icon">📋</div><div className="stat-info"><span className="stat-value">{tenderProjects.length}</span><span className="stat-label">Активных проектов</span></div></div>
-              <div className="stat-card"><div className="stat-icon">📄</div><div className="stat-info"><span className="stat-value">{tenderProjects.reduce((acc, p) => acc + p.files.length, 0)}</span><span className="stat-label">Документов</span></div></div>
-              <div className="stat-card"><div className="stat-icon">⚠️</div><div className="stat-info"><span className="stat-value">8</span><span className="stat-label">Требуют внимания</span></div></div>
-              <div className="stat-card"><div className="stat-icon">✅</div><div className="stat-info"><span className="stat-value">92%</span><span className="stat-label">Выполнено</span></div></div>
-            </div>
+            <p className="page-description">Создание и управление тендерными проектами</p>
 
             {/* New Tender Project Form */}
-            <div className="new-project-section" style={{ marginTop: '2rem' }}>
+            <div className="new-project-section" style={{ marginTop: '1rem' }}>
               <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Создать новый тендерный проект</h2>
               <form onSubmit={(e) => {
                 e.preventDefault();
@@ -3855,15 +3850,48 @@ function App() {
                 </div>
               </div>
             )}
+          </div>
+        );
+      case 'ai-start':
+        return (
+          <div className="page-content">
+            <h1>🚀 ИИ-СТАРТ</h1>
+            <p className="page-description">AI Инженерный Отдел — автоматический анализ тендерной документации</p>
 
-            {/* AI Agent Panel */}
-            {tenderProjects.length > 0 && (
-              <div className="agent-panel" style={{ marginTop: '2.5rem' }}>
-                <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>🤖</span> AI Инженерный Отдел
-                </h2>
-
-                {/* Two dropdowns in a row */}
+            {tenderProjects.length === 0 ? (
+              <div style={{
+                padding: '3rem 2rem',
+                textAlign: 'center',
+                backgroundColor: 'var(--bg-secondary)',
+                borderRadius: '12px',
+                border: '1px dashed var(--border-color)',
+                marginTop: '2rem'
+              }}>
+                <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>📋</span>
+                <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>Нет тендерных проектов</h3>
+                <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.95rem' }}>
+                  Сначала создайте проект на странице <strong>Главная</strong>
+                </p>
+                <button
+                  onClick={() => setActiveNav('dashboard')}
+                  style={{
+                    marginTop: '1.5rem',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: 'var(--accent-color)',
+                    color: 'white',
+                    fontSize: '1rem',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Перейти на Главную
+                </button>
+              </div>
+            ) : (
+              <div className="agent-panel" style={{ marginTop: '1.5rem' }}>
+                {/* Three dropdowns in a row */}
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
                   {/* Project selector */}
                   <div style={{ flex: '1', minWidth: '250px' }}>
@@ -5288,6 +5316,16 @@ function App() {
             {!sidebarCollapsed && <span className="nav-label">Главная</span>}
           </button>
 
+          {/* ИИ-СТАРТ */}
+          <button
+            className={`nav-item ${activeNav === 'ai-start' ? 'active' : ''}`}
+            onClick={() => setActiveNav('ai-start')}
+            title={sidebarCollapsed ? 'ИИ-СТАРТ' : undefined}
+          >
+            <span className="nav-icon">🚀</span>
+            {!sidebarCollapsed && <span className="nav-label">ИИ-СТАРТ</span>}
+          </button>
+
           {/* Разделы dropdown */}
           {!sidebarCollapsed && (
             <div className="nav-section">
@@ -5346,8 +5384,8 @@ function App() {
             </div>
           )}
 
-          {/* Other nav items */}
-          {NAV_ITEMS.slice(1).map(item => (
+          {/* Other nav items (skip dashboard and ai-start which are rendered manually) */}
+          {NAV_ITEMS.slice(2).map(item => (
             <button key={item.id} className={`nav-item ${activeNav === item.id ? 'active' : ''}`} onClick={() => setActiveNav(item.id)} title={sidebarCollapsed ? item.label : undefined}>
               <span className="nav-icon">{item.icon}</span>
               {!sidebarCollapsed && <span className="nav-label">{item.label}</span>}
