@@ -13,6 +13,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Главная', icon: '🏠' },
   { id: 'ai-start', label: 'ИИ-СТАРТ', icon: '🚀' },
+  { id: 'calculations', label: 'Центр расчётов', icon: '🧮' },
   { id: 'indicators', label: 'Основные показатели', icon: '📈' },
   { id: 'checklist', label: 'Чеклист', icon: '✅' },
   { id: 'nuances', label: 'Нюансы', icon: '⚠️' },
@@ -4147,6 +4148,28 @@ function App() {
             )}
           </div>
         );
+      case 'calculations':
+        return (
+          <div className="page-content">
+            <h1>🧮 Центр расчётов</h1>
+            <p className="page-description">Расчёты и калькуляции по тендерным проектам</p>
+
+            <div style={{
+              padding: '3rem 2rem',
+              textAlign: 'center',
+              backgroundColor: 'var(--bg-secondary)',
+              borderRadius: '12px',
+              border: '1px dashed var(--border-color)',
+              marginTop: '2rem'
+            }}>
+              <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>🧮</span>
+              <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>Раздел в разработке</h3>
+              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.95rem' }}>
+                Здесь будут отображаться все расчёты и калькуляции
+              </p>
+            </div>
+          </div>
+        );
       case 'indicators':
         return renderIndicatorsPage();
       case 'checklist':
@@ -5326,6 +5349,16 @@ function App() {
             {!sidebarCollapsed && <span className="nav-label">ИИ-СТАРТ</span>}
           </button>
 
+          {/* Центр расчётов */}
+          <button
+            className={`nav-item ${activeNav === 'calculations' ? 'active' : ''}`}
+            onClick={() => setActiveNav('calculations')}
+            title={sidebarCollapsed ? 'Центр расчётов' : undefined}
+          >
+            <span className="nav-icon">🧮</span>
+            {!sidebarCollapsed && <span className="nav-label">Центр расчётов</span>}
+          </button>
+
           {/* Разделы dropdown */}
           {!sidebarCollapsed && (
             <div className="nav-section">
@@ -5384,8 +5417,8 @@ function App() {
             </div>
           )}
 
-          {/* Other nav items (skip dashboard and ai-start which are rendered manually) */}
-          {NAV_ITEMS.slice(2).map(item => (
+          {/* Other nav items (skip dashboard, ai-start, calculations which are rendered manually) */}
+          {NAV_ITEMS.slice(3).map(item => (
             <button key={item.id} className={`nav-item ${activeNav === item.id ? 'active' : ''}`} onClick={() => setActiveNav(item.id)} title={sidebarCollapsed ? item.label : undefined}>
               <span className="nav-icon">{item.icon}</span>
               {!sidebarCollapsed && <span className="nav-label">{item.label}</span>}
